@@ -18,6 +18,7 @@ jobs:
   call-release-workflow:
     uses: FloGa/rust-workflows/.github/workflows/release.yml@0.5.0
     with:
+      system-preparation: ./.github/prepare-system
       targets-config: ./.github/targets.json
     secrets:
       CRATES_IO_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}

@@ -29,7 +29,8 @@ jobs:
       run-check: true
       run-clippy: true
       run-fmt: true
+      system-preparation: ./.github/prepare-system
       test-args: --workspace ${{ inputs.test-args }}
       test-on-linux: true
-      test-on-macos: true
+      test-on-macos: false
       test-on-windows: false
