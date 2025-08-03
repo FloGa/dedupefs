@@ -1,0 +1,30 @@
+[package]
+name = "dedupefs"
+version = "0.1.0-SNAPSHOT"
+edition = "2024"
+
+default-run = "dedupefs"
+
+authors = ["Florian Gamböck <mail@floga.de>"]
+description = "Presents files as deduplicated, content-addressed 1MB chunks with selectable hash algorithms."
+repository = "https://github.com/FloGa/dedupefs"
+readme = "README.md"
+categories = ["command-line-utilities", "filesystem"]
+keywords = ["cli", "file", "utility"]
+license = "MIT"
+
+[dependencies]
+anyhow = "1.0.98"
+clap = { version = "4.4.8", features = ["derive"] }
+crazy-deduper = "0.1.0"
+ctrlc = "3.4.0"
+daemonize = "0.5.0"
+env_logger = "0.11.5"
+file-declutter = "0.1.0"
+fuser = "0.15.0"
+libc = "0.2.62"
+log = "0.4.0"
+
+[dev-dependencies]
+assert_fs = "1.0.13"
+dir-diff = "0.3.2"
