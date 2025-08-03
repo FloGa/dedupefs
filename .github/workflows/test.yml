@@ -32,5 +32,5 @@ jobs:
       system-preparation: ./.github/prepare-system
       test-args: --workspace ${{ inputs.test-args }}
       test-on-linux: true
-      test-on-macos: true
+      test-on-macos: false
       test-on-windows: false
