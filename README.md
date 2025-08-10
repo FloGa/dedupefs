@@ -58,6 +58,35 @@ Alternatively, pre-built binaries can be downloaded from the [GitHub releases][g
 <!--% !cargo --quiet run -- --help | tail -n+3 %-->
 
 ```text
+Usage: dedupefs [OPTIONS] <SOURCE> <MOUNTPOINT>
+
+Arguments:
+  <SOURCE>
+          Source directory
+
+  <MOUNTPOINT>
+          Mount point
+
+Options:
+      --cache-file <CACHE_FILE>
+          Path to cache file
+          
+          Can be used multiple times. The files are read in reverse order, so they should be sorted with the most accurate ones in the beginning. The first given will be written.
+
+      --hashing-algorithm <HASHING_ALGORITHM>
+          Hashing algorithm to use for chunk filenames
+          
+          [default: sha1]
+          [possible values: md5, sha1, sha256, sha512]
+
+  -f, --foreground
+          Stay in foreground, do not daemonize into the background
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
 ```
 
 To mount a deduped version of `source` directory to `deduped`, you can use:
