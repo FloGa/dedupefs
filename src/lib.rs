@@ -4,7 +4,7 @@ use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::fs::File;
 use std::io::{BufReader, Read, Seek, SeekFrom};
-use std::os::linux::fs::MetadataExt;
+use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, channel};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -246,20 +246,17 @@ impl DedupeFS {
         let rx_quitter = Some(rx_quitter);
 
         let meta_source = fs::metadata(&source).unwrap();
-        let source_uid = meta_source.st_uid();
-        let source_gid = meta_source.st_gid();
-        let source_atime =
-            system_time_from_time(meta_source.st_atime(), meta_source.st_atime_nsec());
-        let source_mtime =
-            system_time_from_time(meta_source.st_mtime(), meta_source.st_mtime_nsec());
-        let source_ctime =
-            system_time_from_time(meta_source.st_ctime(), meta_source.st_ctime_nsec());
+        let source_uid = meta_source.uid();
+        let source_gid = meta_source.gid();
+        let source_atime = system_time_from_time(meta_source.atime(), meta_source.atime_nsec());
+        let source_mtime = system_time_from_time(meta_source.mtime(), meta_source.mtime_nsec());
+        let source_ctime = system_time_from_time(meta_source.ctime(), meta_source.ctime_nsec());
 
         let meta_cache = fs::metadata(&cache_file).unwrap();
-        let cache_size = meta_cache.st_size();
-        let cache_atime = system_time_from_time(meta_cache.st_atime(), meta_cache.st_atime_nsec());
-        let cache_mtime = system_time_from_time(meta_cache.st_mtime(), meta_cache.st_mtime_nsec());
-        let cache_ctime = system_time_from_time(meta_cache.st_ctime(), meta_cache.st_ctime_nsec());
+        let cache_size = meta_cache.size();
+        let cache_atime = system_time_from_time(meta_cache.atime(), meta_cache.atime_nsec());
+        let cache_mtime = system_time_from_time(meta_cache.mtime(), meta_cache.mtime_nsec());
+        let cache_ctime = system_time_from_time(meta_cache.ctime(), meta_cache.ctime_nsec());
 
         DedupeFS {
             file_handles,
