@@ -12,6 +12,7 @@ readme = "README.md"
 categories = ["command-line-utilities", "filesystem"]
 keywords = ["cli", "file", "utility"]
 license = "MIT"
+include = ["src/**/*", "README.md"]
 
 [dependencies]
 anyhow = "1.0.98"
