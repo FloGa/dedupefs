@@ -205,6 +205,23 @@ struct Node {
     node_type: NodeType,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct MetaSource {
+    uid: u32,
+    gid: u32,
+    atime: SystemTime,
+    mtime: SystemTime,
+    ctime: SystemTime,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct MetaCache {
+    size: u64,
+    atime: SystemTime,
+    mtime: SystemTime,
+    ctime: SystemTime,
+}
+
 pub struct DedupeFS {
     source: PathBuf,
     file_handles: HashMap<u64, FileHandle>,
@@ -213,15 +230,8 @@ pub struct DedupeFS {
     cache_file: PathBuf,
     hashed_chunks: HashMap<OsString, FileChunk>,
     nodes: HashMap<u64, Node>,
-    source_uid: u32,
-    source_gid: u32,
-    source_atime: SystemTime,
-    source_mtime: SystemTime,
-    source_ctime: SystemTime,
-    cache_size: u64,
-    cache_atime: SystemTime,
-    cache_mtime: SystemTime,
-    cache_ctime: SystemTime,
+    meta_source: MetaSource,
+    meta_cache: MetaCache,
 }
 
 struct FileHandle {
@@ -384,18 +394,22 @@ impl DedupeFS {
 
         let rx_quitter = Some(rx_quitter);
 
-        let meta_source = fs::metadata(&source).unwrap();
-        let source_uid = meta_source.uid();
-        let source_gid = meta_source.gid();
-        let source_atime = system_time_from_time(meta_source.atime(), meta_source.atime_nsec());
-        let source_mtime = system_time_from_time(meta_source.mtime(), meta_source.mtime_nsec());
-        let source_ctime = system_time_from_time(meta_source.ctime(), meta_source.ctime_nsec());
+        let meta_source_fs = fs::metadata(&source).unwrap();
+        let meta_source = MetaSource {
+            uid: meta_source_fs.uid(),
+            gid: meta_source_fs.gid(),
+            atime: system_time_from_time(meta_source_fs.atime(), meta_source_fs.atime_nsec()),
+            mtime: system_time_from_time(meta_source_fs.mtime(), meta_source_fs.mtime_nsec()),
+            ctime: system_time_from_time(meta_source_fs.ctime(), meta_source_fs.ctime_nsec()),
+        };
 
-        let meta_cache = fs::metadata(&cache_file).unwrap();
-        let cache_size = meta_cache.size();
-        let cache_atime = system_time_from_time(meta_cache.atime(), meta_cache.atime_nsec());
-        let cache_mtime = system_time_from_time(meta_cache.mtime(), meta_cache.mtime_nsec());
-        let cache_ctime = system_time_from_time(meta_cache.ctime(), meta_cache.ctime_nsec());
+        let meta_cache_fs = fs::metadata(&cache_file).unwrap();
+        let meta_cache = MetaCache {
+            size: meta_cache_fs.size(),
+            atime: system_time_from_time(meta_cache_fs.atime(), meta_cache_fs.atime_nsec()),
+            mtime: system_time_from_time(meta_cache_fs.mtime(), meta_cache_fs.mtime_nsec()),
+            ctime: system_time_from_time(meta_cache_fs.ctime(), meta_cache_fs.ctime_nsec()),
+        };
 
         DedupeFS {
             file_handles,
@@ -405,15 +419,8 @@ impl DedupeFS {
             cache_file,
             hashed_chunks,
             nodes,
-            source_uid,
-            source_gid,
-            source_atime,
-            source_mtime,
-            source_ctime,
-            cache_size,
-            cache_atime,
-            cache_mtime,
-            cache_ctime,
+            meta_source,
+            meta_cache,
         }
     }
 
@@ -442,8 +449,8 @@ impl DedupeFS {
             ino,
             size,
             blocks: (size + 511) / 512,
-            uid: self.source_uid,
-            gid: self.source_gid,
+            uid: self.meta_source.uid,
+            gid: self.meta_source.gid,
             ..ATTRS_DEFAULT
         }
     }
@@ -472,10 +479,10 @@ impl DedupeFS {
 
     fn get_attr_from_ino(&self, ino: u64) -> Option<FileAttr> {
         if ino == INO_CACHE {
-            let mut attr = self.create_attrs_for_file(ino, self.cache_size);
-            attr.atime = self.cache_atime;
-            attr.mtime = self.cache_mtime;
-            attr.ctime = self.cache_ctime;
+            let mut attr = self.create_attrs_for_file(ino, self.meta_cache.size);
+            attr.atime = self.meta_cache.atime;
+            attr.mtime = self.meta_cache.mtime;
+            attr.ctime = self.meta_cache.ctime;
             Some(attr)
         } else {
             self.nodes.get(&ino).and_then(|node| match &node.node_type {
@@ -486,9 +493,9 @@ impl DedupeFS {
                 NodeType::Directory { .. } => {
                     let mut attr = self.create_attrs_for_dir(ino, node.nlink);
                     if ino == INO_ROOT {
-                        attr.atime = self.source_atime;
-                        attr.mtime = self.source_mtime;
-                        attr.ctime = self.source_ctime;
+                        attr.atime = self.meta_source.atime;
+                        attr.mtime = self.meta_source.mtime;
+                        attr.ctime = self.meta_source.ctime;
                     }
                     Some(attr)
                 }
@@ -540,7 +547,7 @@ impl Filesystem for DedupeFS {
                 FileHandle {
                     file,
                     start: 0,
-                    size: u64::MAX,
+                    size: self.meta_cache.size,
                     offset: 0,
                 },
             );
