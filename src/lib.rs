@@ -256,21 +256,21 @@ impl DedupeFS {
 
         info!("dedupe initialized");
 
-        deduper.write_cache();
-
-        info!("dedupe cache written");
-
         let mut last_write = SystemTime::now();
+        let mut write_necessary = false;
 
         let hashed_chunks = deduper
             .cache
             .get_chunks()
             .unwrap()
             .map(|(hash, chunk, dirty)| {
-                if dirty && last_write.elapsed().unwrap().as_secs() > 5 {
-                    deduper.write_cache();
-                    info!("dedupe cache written");
-                    last_write = SystemTime::now();
+                if dirty {
+                    write_necessary = true;
+                    if last_write.elapsed().unwrap().as_secs() > 5 {
+                        deduper.write_cache();
+                        info!("dedupe cache written");
+                        last_write = SystemTime::now();
+                    }
                 }
 
                 debug!("{hash}: {chunk:?}");
@@ -279,10 +279,13 @@ impl DedupeFS {
             })
             .collect::<HashMap<_, _>>();
 
-        deduper.write_cache();
-
         let cache_file = caches.first().unwrap().as_ref().to_path_buf();
         let cache_filename = OsString::from(cache_file.file_name().unwrap());
+
+        if write_necessary || !cache_file.exists() {
+            deduper.write_cache();
+            info!("dedupe cache written");
+        }
 
         let mut nodes = HashMap::new();
         let mut paths = HashMap::new();
