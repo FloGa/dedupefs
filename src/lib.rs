@@ -150,7 +150,7 @@ use fuser::{
     ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyOpen, Request,
 };
 use libc::ENOENT;
-use log::{debug, info};
+use log::{debug, info, warn};
 
 pub mod cli;
 
@@ -367,10 +367,12 @@ impl DedupeFS {
 
         {
             let tx_quitter = tx_quitter.clone();
-            ctrlc::set_handler(move || {
+            if let Err(e) = ctrlc::set_handler(move || {
                 tx_quitter.send(()).unwrap();
-            })
-            .expect("Error setting Ctrl-C handler");
+            }) {
+                // Failure to set the Ctrl-C handler should not cause the program to exit.
+                warn!("Error setting Ctrl-C handler: {}", e.to_string());
+            }
         }
 
         let drop_hook = Box::new(move || {
