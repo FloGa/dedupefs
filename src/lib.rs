@@ -542,7 +542,7 @@ impl Filesystem for DedupeFS {
                 FileHandle {
                     file,
                     start: 0,
-                    size: u64::MAX,
+                    size: self.meta_cache.size,
                     offset: 0,
                 },
             );
