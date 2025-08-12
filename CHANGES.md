@@ -22,6 +22,12 @@
     readdir, a possible changing directory will not jeopardize the execution
     anymore.
 
+-   Re-factor open and read methods
+
+-   Add proper error handling in read
+
+-   Better tracking and reuse of handle ids
+
 # Changes in 0.1.0
 
 Initial release.
