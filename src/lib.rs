@@ -699,8 +699,7 @@ impl Filesystem for DedupeFS {
         }))
         .collect();
 
-        let fh = self.dir_handles.keys().copied().max().unwrap_or(0) + 1;
-        self.dir_handles.insert(fh, entries);
+        let fh = self.insert_new_dir_handle(entries);
         reply.opened(fh, 0);
     }
 
