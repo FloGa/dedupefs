@@ -17,7 +17,7 @@ fn empty_mirror() -> Result<(), Box<dyn Error>> {
 
     let cache_file = tempdir.child("cache.json");
 
-    let filesystem = DedupeFS::new(&mirror, vec![&cache_file], HashingAlgorithm::MD5);
+    let filesystem = DedupeFS::new(&mirror, vec![&cache_file], HashingAlgorithm::MD5, 3);
     let _session = filesystem.mount(&mountpoint)?;
 
     assert!(!mountpoint.child("data").exists(), "Empty dir is not empty");

@@ -30,6 +30,10 @@ struct CommandMain {
     /// Stay in foreground, do not daemonize into the background
     #[arg(long, short)]
     foreground: bool,
+
+    /// Declutter files into this many subdirectory levels
+    #[arg(long, default_value_t = 3)]
+    declutter_levels: usize,
 }
 
 #[derive(Debug, Parser)]
@@ -50,6 +54,10 @@ struct CommandCreateCache {
     /// Hashing algorithm to use for chunk filenames
     #[arg(long, value_enum, default_value_t = HashingAlgorithmArgument::SHA1)]
     hashing_algorithm: HashingAlgorithmArgument,
+
+    /// Declutter files into this many subdirectory levels
+    #[arg(long, default_value_t = 3)]
+    declutter_levels: usize,
 }
 
 #[derive(Debug, Parser)]
@@ -143,8 +151,9 @@ impl Cli {
         let mountpoint = args.mountpoint;
         let caches = args.cache_file;
         let hashing_algorithm = args.hashing_algorithm.into();
+        let declutter_levels = args.declutter_levels;
 
-        let filesystem = DedupeFS::new(source, caches, hashing_algorithm);
+        let filesystem = DedupeFS::new(source, caches, hashing_algorithm, declutter_levels);
 
         if !args.foreground {
             Daemonize::new().start().expect("Failed to daemonize.");
@@ -164,8 +173,9 @@ impl Cli {
         let source = args.source;
         let caches = args.cache_file;
         let hashing_algorithm = args.hashing_algorithm.into();
+        let declutter_levels = args.declutter_levels;
 
-        let _ = DedupeFS::new(source, caches, hashing_algorithm);
+        let _ = DedupeFS::new(source, caches, hashing_algorithm, declutter_levels);
 
         Ok(())
     }

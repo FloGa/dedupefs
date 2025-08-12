@@ -80,6 +80,11 @@
 //!   -f, --foreground
 //!           Stay in foreground, do not daemonize into the background
 //!
+//!       --declutter-levels <DECLUTTER_LEVELS>
+//!           Declutter files into this many subdirectory levels
+//!
+//!           [default: 3]
+//!
 //!   -h, --help
 //!           Print help (see a summary with '-h')
 //!
@@ -298,6 +303,7 @@ impl DedupeFS {
         source: impl AsRef<Path>,
         caches: Vec<impl AsRef<Path>>,
         hashing_algorithm: HashingAlgorithm,
+        declutter_level: usize,
     ) -> DedupeFS {
         info!("new: {:?}", source.as_ref());
 
@@ -370,7 +376,7 @@ impl DedupeFS {
 
         for path in FileDeclutter::new_from_iter(hashed_chunks.keys().cloned().map(PathBuf::from))
             .base(PathBuf::from("data"))
-            .levels(3)
+            .levels(declutter_level)
             .map(|(_, path)| path)
         {
             debug!("path: {:?}", path);
