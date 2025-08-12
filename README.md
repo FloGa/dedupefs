@@ -82,6 +82,11 @@ Options:
   -f, --foreground
           Stay in foreground, do not daemonize into the background
 
+      --declutter-levels <DECLUTTER_LEVELS>
+          Declutter files into this many subdirectory levels
+          
+          [default: 3]
+
   -h, --help
           Print help (see a summary with '-h')
 
