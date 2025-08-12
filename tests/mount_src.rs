@@ -35,7 +35,7 @@ fn mirror_source() -> Result<(), Box<dyn Error>> {
     deduper.write_cache();
 
     {
-        let filesystem = DedupeFS::new(&source, vec![&cache_for_mount], HashingAlgorithm::SHA1);
+        let filesystem = DedupeFS::new(&source, vec![&cache_for_mount], HashingAlgorithm::SHA1, 3);
         let _session = filesystem.mount(&mountpoint)?;
 
         assert!(
@@ -69,7 +69,7 @@ fn mirror_source() -> Result<(), Box<dyn Error>> {
 
         sleep(std::time::Duration::from_millis(200));
 
-        let filesystem = DedupeFS::new(&source, vec![&cache_for_mount], HashingAlgorithm::SHA1);
+        let filesystem = DedupeFS::new(&source, vec![&cache_for_mount], HashingAlgorithm::SHA1, 3);
         let _session = filesystem.mount(&mountpoint)?;
 
         let modtime_after = std::fs::metadata(&cache_for_mount)?.modified().unwrap();
