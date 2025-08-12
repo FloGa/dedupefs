@@ -16,6 +16,12 @@
 
 -   Do not write the cache if it is unchanged
 
+-   Make readdir more robust
+
+    By collecting all relevant entries in opendir and using this Vector in
+    readdir, a possible changing directory will not jeopardize the execution
+    anymore.
+
 # Changes in 0.1.0
 
 Initial release.

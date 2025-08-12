@@ -135,13 +135,13 @@
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
-use std::fs;
 use std::fs::File;
 use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, channel};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::{fs, iter};
 
 use crazy_deduper::{Deduper, FileChunk, HashingAlgorithm};
 use file_declutter::FileDeclutter;
@@ -149,7 +149,7 @@ use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
     ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyOpen, Request,
 };
-use libc::ENOENT;
+use libc::{ENOENT, ENOTDIR};
 use log::{debug, info, warn};
 
 pub mod cli;
@@ -225,6 +225,7 @@ struct MetaCache {
 pub struct DedupeFS {
     source: PathBuf,
     file_handles: HashMap<u64, FileHandle>,
+    dir_handles: HashMap<u64, Vec<DirEntryAddArgs>>,
     drop_hook: DropHookFn,
     rx_quitter: Option<Receiver<()>>,
     cache_file: PathBuf,
@@ -239,6 +240,13 @@ struct FileHandle {
     start: u64,
     size: u64,
     offset: u64,
+}
+
+#[derive(Clone, Debug)]
+struct DirEntryAddArgs {
+    ino: u64,
+    kind: FileType,
+    name: OsString,
 }
 
 impl WaitableBackgroundSession {
@@ -375,6 +383,7 @@ impl DedupeFS {
         debug!("nodes: {:#?}", nodes);
 
         let file_handles = Default::default();
+        let dir_handles = Default::default();
 
         let (tx_quitter, rx_quitter) = channel();
 
@@ -413,6 +422,7 @@ impl DedupeFS {
 
         DedupeFS {
             file_handles,
+            dir_handles,
             source: source.as_ref().into(),
             drop_hook,
             rx_quitter,
@@ -638,64 +648,87 @@ impl Filesystem for DedupeFS {
         reply.ok();
     }
 
+    fn opendir(&mut self, _req: &Request<'_>, ino: u64, _flags: i32, reply: ReplyOpen) {
+        info!("opendir: {}", ino);
+
+        let Some(node) = self.nodes.get(&ino) else {
+            reply.error(ENOENT);
+            return;
+        };
+
+        let NodeType::Directory { children } = &node.node_type else {
+            reply.error(ENOTDIR);
+            return;
+        };
+
+        let entries = iter::once(DirEntryAddArgs {
+            ino,
+            kind: FileType::Directory,
+            name: OsString::from("."),
+        })
+        .chain(iter::once(DirEntryAddArgs {
+            ino: node.parent,
+            kind: FileType::Directory,
+            name: OsString::from(".."),
+        }))
+        .chain(children.iter().filter_map(|(child_name, child_ino)| {
+            if let Some(child_node) = self.nodes.get(&child_ino) {
+                Some(DirEntryAddArgs {
+                    ino: *child_ino,
+                    kind: match child_node.node_type {
+                        NodeType::File(_) => FileType::RegularFile,
+                        NodeType::Directory { .. } => FileType::Directory,
+                    },
+                    name: child_name.clone(),
+                })
+            } else {
+                None
+            }
+        }))
+        .collect();
+
+        let fh = self.dir_handles.keys().copied().max().unwrap_or(0) + 1;
+        self.dir_handles.insert(fh, entries);
+        reply.opened(fh, 0);
+    }
+
     fn readdir(
         &mut self,
         _req: &Request,
-        ino: u64,
-        _fh: u64,
+        _ino: u64,
+        fh: u64,
         offset: i64,
         mut reply: ReplyDirectory,
     ) {
-        info!("readdir: {}, {}", ino, offset);
+        info!("readdir: fh={fh}, offset={offset}");
 
-        if let Some(node) = self.nodes.get(&ino) {
-            if let NodeType::Directory { children, .. } = &node.node_type {
-                if offset < 2 {
-                    if offset == 0 {
-                        if reply.add(ino, 1, FileType::Directory, ".") {
-                            reply.ok();
-                            return;
-                        }
-                    }
+        let entries = self.dir_handles.get(&fh).unwrap();
+        for (index, entry) in entries.iter().enumerate().skip(0.max(offset as usize)) {
+            let is_full = reply.add(
+                entry.ino,
+                (index + 1) as i64,
+                entry.kind,
+                entry.name.as_os_str(),
+            );
 
-                    if reply.add(
-                        self.nodes.get(&ino).unwrap().parent,
-                        2,
-                        FileType::Directory,
-                        "..",
-                    ) {
-                        reply.ok();
-                        return;
-                    }
-                }
-
-                for (off, (child_name, child_ino)) in children
-                    .iter()
-                    .enumerate()
-                    .skip(0.max((offset - 2) as usize))
-                {
-                    if let Some(child_node) = self.nodes.get(&child_ino) {
-                        let is_full = reply.add(
-                            *child_ino,
-                            (off + 2 + 1) as i64,
-                            match child_node.node_type {
-                                NodeType::File(_) => FileType::RegularFile,
-                                NodeType::Directory { .. } => FileType::Directory,
-                            },
-                            child_name,
-                        );
-
-                        if is_full {
-                            break;
-                        }
-                    }
-                }
+            if is_full {
+                break;
             }
-        } else {
-            reply.error(ENOENT);
-            return;
         }
 
+        reply.ok();
+    }
+
+    fn releasedir(
+        &mut self,
+        _req: &Request<'_>,
+        _ino: u64,
+        fh: u64,
+        _flags: i32,
+        reply: ReplyEmpty,
+    ) {
+        info!("releasedir: {}", fh);
+        self.dir_handles.remove(&fh);
         reply.ok();
     }
 }
