@@ -223,8 +223,8 @@ struct MetaCache {
 
 pub struct DedupeFS {
     source: PathBuf,
-    file_handles: HashMap<u64, FileHandle>,
-    dir_handles: HashMap<u64, Vec<DirEntryAddArgs>>,
+    file_handles: HandlePool<FileHandle>,
+    dir_handles: HandlePool<Vec<DirEntryAddArgs>>,
     drop_hook: DropHookFn,
     rx_quitter: Option<Receiver<()>>,
     cache_file: PathBuf,
@@ -246,6 +246,43 @@ struct DirEntryAddArgs {
     ino: u64,
     kind: FileType,
     name: OsString,
+}
+
+struct HandlePool<T> {
+    used: HashMap<u64, T>,
+    free: Vec<u64>,
+    next_free: u64,
+}
+
+impl<T> Default for HandlePool<T> {
+    fn default() -> Self {
+        HandlePool {
+            used: Default::default(),
+            free: Default::default(),
+            next_free: 1,
+        }
+    }
+}
+
+impl<T> HandlePool<T> {
+    fn get_free_id(&mut self) -> u64 {
+        self.free.pop().unwrap_or_else(|| {
+            let id = self.next_free;
+            self.next_free += 1;
+            id
+        })
+    }
+
+    fn insert(&mut self, entry: T) -> u64 {
+        let handle_id = self.get_free_id();
+        self.used.insert(handle_id, entry);
+        handle_id
+    }
+
+    fn remove(&mut self, handle_id: u64) {
+        self.used.remove(&handle_id);
+        self.free.push(handle_id);
+    }
 }
 
 impl WaitableBackgroundSession {
@@ -511,18 +548,6 @@ impl DedupeFS {
             })
         }
     }
-
-    fn insert_new_file_handle(&mut self, file_handle: FileHandle) -> u64 {
-        let fh = self.file_handles.keys().copied().max().unwrap_or(0) + 1;
-        self.file_handles.insert(fh, file_handle);
-        fh
-    }
-
-    fn insert_new_dir_handle(&mut self, dir_entries: Vec<DirEntryAddArgs>) -> u64 {
-        let fh = self.dir_handles.keys().copied().max().unwrap_or(0) + 1;
-        self.dir_handles.insert(fh, dir_entries);
-        fh
-    }
 }
 
 impl Drop for DedupeFS {
@@ -599,7 +624,7 @@ impl Filesystem for DedupeFS {
             }
         };
 
-        let fh = self.insert_new_file_handle(file_handle);
+        let fh = self.file_handles.insert(file_handle);
         reply.opened(fh, 0);
     }
 
@@ -618,7 +643,7 @@ impl Filesystem for DedupeFS {
 
         let offset = offset as u64;
 
-        let handle = self.file_handles.get_mut(&fh).unwrap();
+        let handle = self.file_handles.used.get_mut(&fh).unwrap();
 
         if offset != handle.offset {
             handle
@@ -654,7 +679,7 @@ impl Filesystem for DedupeFS {
     ) {
         info!("release: {:?}", (_ino, fh));
 
-        self.file_handles.remove(&fh);
+        self.file_handles.remove(fh);
         reply.ok();
     }
 
@@ -697,7 +722,7 @@ impl Filesystem for DedupeFS {
         }))
         .collect();
 
-        let fh = self.insert_new_dir_handle(entries);
+        let fh = self.dir_handles.insert(entries);
         reply.opened(fh, 0);
     }
 
@@ -711,7 +736,7 @@ impl Filesystem for DedupeFS {
     ) {
         info!("readdir: fh={fh}, offset={offset}");
 
-        let entries = self.dir_handles.get(&fh).unwrap();
+        let entries = self.dir_handles.used.get(&fh).unwrap();
         for (index, entry) in entries.iter().enumerate().skip(0.max(offset as usize)) {
             let is_full = reply.add(
                 entry.ino,
@@ -737,7 +762,7 @@ impl Filesystem for DedupeFS {
         reply: ReplyEmpty,
     ) {
         info!("releasedir: {}", fh);
-        self.dir_handles.remove(&fh);
+        self.dir_handles.remove(fh);
         reply.ok();
     }
 }
