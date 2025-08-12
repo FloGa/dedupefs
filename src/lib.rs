@@ -632,7 +632,11 @@ impl Filesystem for DedupeFS {
         let size = size.min(handle.size - offset.min(handle.size));
 
         let mut buffer = vec![0; size as usize];
-        handle.file.read_exact(&mut buffer).unwrap();
+        if let Err(e) = handle.file.read_exact(&mut buffer) {
+            error!("Error reading file: {}", e);
+            reply.error(EIO);
+            return;
+        };
         handle.offset += size;
 
         reply.data(&buffer);
