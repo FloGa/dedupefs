@@ -512,6 +512,18 @@ impl DedupeFS {
             })
         }
     }
+
+    fn insert_new_file_handle(&mut self, file_handle: FileHandle) -> u64 {
+        let fh = self.file_handles.keys().copied().max().unwrap_or(0) + 1;
+        self.file_handles.insert(fh, file_handle);
+        fh
+    }
+
+    fn insert_new_dir_handle(&mut self, dir_entries: Vec<DirEntryAddArgs>) -> u64 {
+        let fh = self.dir_handles.keys().copied().max().unwrap_or(0) + 1;
+        self.dir_handles.insert(fh, dir_entries);
+        fh
+    }
 }
 
 impl Drop for DedupeFS {
