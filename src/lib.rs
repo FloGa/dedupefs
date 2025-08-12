@@ -132,7 +132,6 @@
 //! - Make chunk site configurable (via *Crazy Deduper*, fixed to 1MB at the moment).
 //! - Provide better documentation with examples and use case descriptions.
 
-use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
@@ -149,8 +148,8 @@ use fuser::{
     BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
     ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyOpen, Request,
 };
-use libc::{ENOENT, ENOTDIR};
-use log::{debug, info, warn};
+use libc::{EIO, EISDIR, ENOENT, ENOTDIR};
+use log::{debug, error, info, warn};
 
 pub mod cli;
 
@@ -560,49 +559,48 @@ impl Filesystem for DedupeFS {
     fn open(&mut self, _req: &Request, ino: u64, _flags: i32, reply: ReplyOpen) {
         info!("open: {:?}", (ino));
 
-        if ino == INO_CACHE {
+        let Some(node) = self.nodes.get(&ino) else {
+            reply.error(ENOENT);
+            return;
+        };
+
+        let NodeType::File(name) = &node.node_type else {
+            reply.error(EISDIR);
+            return;
+        };
+
+        let file_handle = if ino == INO_CACHE {
             let file = File::open(&self.cache_file).unwrap();
             let file = BufReader::new(file);
-            let fh = self.file_handles.keys().max().unwrap_or(&0).clone() + 1;
-            self.file_handles.insert(
-                fh,
-                FileHandle {
-                    file,
-                    start: 0,
-                    size: self.meta_cache.size,
-                    offset: 0,
-                },
-            );
-            reply.opened(fh, 0);
-            return;
-        }
-
-        if let Some(node) = self.nodes.get(&ino) {
-            if let NodeType::File(name) = &node.node_type {
-                if let Some(chunk) = self.hashed_chunks.get(name) {
-                    let file = File::open(self.source.join(chunk.path.as_ref().unwrap())).unwrap();
-                    let file = {
-                        let mut file = BufReader::new(file);
-                        file.seek(SeekFrom::Start(chunk.start)).unwrap();
-                        file
-                    };
-                    let fh = self.file_handles.keys().max().unwrap_or(&0).clone() + 1;
-                    self.file_handles.insert(
-                        fh,
-                        FileHandle {
-                            file,
-                            start: chunk.start,
-                            size: chunk.size,
-                            offset: 0,
-                        },
-                    );
-                    reply.opened(fh, 0);
-                    return;
-                }
+            FileHandle {
+                file,
+                start: 0,
+                size: self.meta_cache.size,
+                offset: 0,
             }
-        }
+        } else {
+            let Some(chunk) = self.hashed_chunks.get(name) else {
+                error!("Inconsistent state: No chunk for file {:?}", name);
+                reply.error(EIO);
+                return;
+            };
 
-        reply.error(ENOENT)
+            let file = File::open(self.source.join(chunk.path.as_ref().unwrap())).unwrap();
+            let file = {
+                let mut file = BufReader::new(file);
+                file.seek(SeekFrom::Start(chunk.start)).unwrap();
+                file
+            };
+            FileHandle {
+                file,
+                start: chunk.start,
+                size: chunk.size,
+                offset: 0,
+            }
+        };
+
+        let fh = self.insert_new_file_handle(file_handle);
+        reply.opened(fh, 0);
     }
 
     fn read(
@@ -619,7 +617,6 @@ impl Filesystem for DedupeFS {
         info!("read: {:?}", (_ino, fh));
 
         let offset = offset as u64;
-        let size = size as u64;
 
         let handle = self.file_handles.get_mut(&fh).unwrap();
 
@@ -631,17 +628,14 @@ impl Filesystem for DedupeFS {
             handle.offset = offset;
         }
 
-        reply.data(
-            &handle
-                .file
-                .borrow_mut()
-                .take(size.min(handle.size - offset.min(handle.size)))
-                .bytes()
-                .map(|b| b.unwrap())
-                .collect::<Vec<_>>(),
-        );
+        let size = size as u64;
+        let size = size.min(handle.size - offset.min(handle.size));
 
+        let mut buffer = vec![0; size as usize];
+        handle.file.read_exact(&mut buffer).unwrap();
         handle.offset += size;
+
+        reply.data(&buffer);
     }
 
     fn release(
