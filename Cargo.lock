@@ -268,7 +268,7 @@ dependencies = [
 
 [[package]]
 name = "dedupefs"
-version = "0.1.0"
+version = "0.1.1-RC"
 dependencies = [
  "anyhow",
  "assert_fs",
