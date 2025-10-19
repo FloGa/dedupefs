@@ -74,6 +74,10 @@ struct CommandCheckCache {
     /// with the most accurate ones in the beginning. They will only be read, not written.
     #[arg(long)]
     cache_file: Vec<PathBuf>,
+
+    /// Declutter files into this many subdirectory levels
+    #[arg(long, default_value_t = 3)]
+    declutter_levels: usize,
 }
 
 #[derive(Debug, Parser)]
@@ -94,6 +98,10 @@ struct CommandListExtraFiles {
     /// Separate file names with null character instead of newline
     #[arg(short = '0')]
     null: bool,
+
+    /// Declutter files into this many subdirectory levels
+    #[arg(long, default_value_t = 3)]
+    declutter_levels: usize,
 }
 
 #[derive(Debug, Parser)]
@@ -118,6 +126,10 @@ struct CommandDeleteExtraFiles {
     /// Force deletion
     #[arg(short)]
     force: bool,
+
+    /// Declutter files into this many subdirectory levels
+    #[arg(long, default_value_t = 3)]
+    declutter_levels: usize,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd, ValueEnum)]
@@ -185,7 +197,9 @@ impl Cli {
 
         let args = CommandCheckCache::parse();
 
-        if Hydrator::new(args.source, args.cache_file).check_cache(3) {
+        let declutter_levels = args.declutter_levels;
+
+        if Hydrator::new(args.source, args.cache_file).check_cache(declutter_levels) {
             println!("Cache is OK");
             Ok(())
         } else {
@@ -198,7 +212,9 @@ impl Cli {
 
         let args = CommandListExtraFiles::parse();
 
-        for path in Hydrator::new(args.source, args.cache_file).list_extra_files(3) {
+        let declutter_levels = args.declutter_levels;
+
+        for path in Hydrator::new(args.source, args.cache_file).list_extra_files(declutter_levels) {
             if args.null {
                 print!("{}\0", path.display());
             } else {
@@ -218,8 +234,13 @@ impl Cli {
             anyhow::bail!("Warning, this will delete data. If you are sure, use the `-f` flag.")
         }
 
-        for path in Hydrator::new(args.source, args.cache_file).list_extra_files(3) {
-            std::fs::remove_file(path)?;
+        let declutter_levels = args.declutter_levels;
+
+        for path in Hydrator::new(args.source, args.cache_file).list_extra_files(declutter_levels) {
+            std::fs::remove_file(&path)?;
+            if args.verbose {
+                println!("Deleted {}", path.display());
+            }
         }
 
         Ok(())
