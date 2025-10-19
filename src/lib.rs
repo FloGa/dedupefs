@@ -196,6 +196,14 @@ pub struct WaitableBackgroundSession {
     rx_quitter: Receiver<()>,
 }
 
+impl WaitableBackgroundSession {
+    pub fn wait(&self) {
+        self.rx_quitter
+            .recv()
+            .expect("Could not join quitter channel");
+    }
+}
+
 #[derive(Debug)]
 enum NodeType {
     File(OsString),
@@ -287,14 +295,6 @@ impl<T> HandlePool<T> {
     fn remove(&mut self, handle_id: u64) {
         self.used.remove(&handle_id);
         self.free.push(handle_id);
-    }
-}
-
-impl WaitableBackgroundSession {
-    pub fn wait(&self) {
-        self.rx_quitter
-            .recv()
-            .expect("Could not join quitter channel");
     }
 }
 
