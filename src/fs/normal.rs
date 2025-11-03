@@ -17,9 +17,24 @@ use libc::{EIO, EISDIR, ENOENT, ENOTDIR};
 use log::{debug, error, info, warn};
 
 use crate::{
-    ATTRS_DEFAULT, DirEntryAddArgs, DropHookFn, FileHandle, HandlePool, INO_CACHE, INO_ROOT,
-    MetaCache, MetaSource, Node, NodeType, TTL, WaitableBackgroundSession, system_time_from_time,
+    ATTRS_DEFAULT, DirEntryAddArgs, DropHookFn, HandlePool, INO_CACHE, INO_ROOT, MetaSource, Node,
+    NodeType, TTL, WaitableBackgroundSession, system_time_from_time,
 };
+
+#[derive(Clone, Copy, Debug)]
+struct MetaCache {
+    size: u64,
+    atime: SystemTime,
+    mtime: SystemTime,
+    ctime: SystemTime,
+}
+
+struct FileHandle {
+    file: BufReader<File>,
+    start: u64,
+    size: u64,
+    offset: u64,
+}
 
 pub struct DedupeFS {
     source: PathBuf,

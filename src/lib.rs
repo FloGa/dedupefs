@@ -139,8 +139,6 @@
 
 use std::collections::HashMap;
 use std::ffi::OsString;
-use std::fs::File;
-use std::io::BufReader;
 use std::sync::mpsc::Receiver;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -217,21 +215,6 @@ struct MetaSource {
     atime: SystemTime,
     mtime: SystemTime,
     ctime: SystemTime,
-}
-
-#[derive(Clone, Copy, Debug)]
-struct MetaCache {
-    size: u64,
-    atime: SystemTime,
-    mtime: SystemTime,
-    ctime: SystemTime,
-}
-
-struct FileHandle {
-    file: BufReader<File>,
-    start: u64,
-    size: u64,
-    offset: u64,
 }
 
 #[derive(Clone, Debug)]
