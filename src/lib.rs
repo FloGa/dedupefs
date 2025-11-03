@@ -148,6 +148,7 @@ pub mod cli;
 mod fs;
 
 pub use fs::normal::DedupeFS;
+pub use fs::reverse::DedupeReverseFS;
 
 const TTL: Duration = Duration::from_secs(1);
 

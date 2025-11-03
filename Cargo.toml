@@ -25,6 +25,7 @@ file-declutter = "0.1.0"
 fuser = "0.16.0"
 libc = "0.2.62"
 log = "0.4.0"
+lru = "0.16.2"
 
 [dev-dependencies]
 assert_fs = "1.0.13"

@@ -1,11 +1,11 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use anyhow::Result;
 use clap::{Parser, ValueEnum};
 use crazy_deduper::{HashingAlgorithm, Hydrator};
 use daemonize::Daemonize;
 
-use crate::DedupeFS;
+use crate::{DedupeFS, DedupeReverseFS, WaitableBackgroundSession};
 
 #[derive(Debug, Parser)]
 #[command(author, version, about, long_about = None)]
@@ -34,6 +34,10 @@ struct CommandMain {
     /// Declutter files into this many subdirectory levels
     #[arg(long, default_value_t = 3)]
     declutter_levels: usize,
+
+    /// Reverse mode, present chunks re-hydrated
+    #[arg(long)]
+    reverse: bool,
 }
 
 #[derive(Debug, Parser)]
@@ -151,6 +155,23 @@ impl From<HashingAlgorithmArgument> for HashingAlgorithm {
     }
 }
 
+enum MountModes {
+    Normal(DedupeFS),
+    Reverse(DedupeReverseFS),
+}
+
+impl MountModes {
+    fn mount(
+        self,
+        mountpoint: impl AsRef<Path>,
+    ) -> std::result::Result<WaitableBackgroundSession, Box<dyn std::error::Error>> {
+        match self {
+            MountModes::Normal(fs) => fs.mount(mountpoint),
+            MountModes::Reverse(fs) => fs.mount(mountpoint),
+        }
+    }
+}
+
 pub struct Cli {}
 
 impl Cli {
@@ -164,8 +185,18 @@ impl Cli {
         let caches = args.cache_file;
         let hashing_algorithm = args.hashing_algorithm.into();
         let declutter_levels = args.declutter_levels;
+        let reverse = args.reverse;
 
-        let filesystem = DedupeFS::new(source, caches, hashing_algorithm, declutter_levels);
+        let filesystem = if reverse {
+            MountModes::Reverse(DedupeReverseFS::new(source, caches, declutter_levels))
+        } else {
+            MountModes::Normal(DedupeFS::new(
+                source,
+                caches,
+                hashing_algorithm,
+                declutter_levels,
+            ))
+        };
 
         if !args.foreground {
             Daemonize::new().start().expect("Failed to daemonize.");
