@@ -74,6 +74,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e16d2d3311acee920a9eb8d33b8cbc1787ce4a264e85f964c2404b969bdcd487"
 
 [[package]]
+name = "assert_cmd"
+version = "2.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bcbb6924530aa9e0432442af08bbcafdad182db80d2e560da42a6d442535bf85"
+dependencies = [
+ "anstyle",
+ "bstr",
+ "libc",
+ "predicates",
+ "predicates-core",
+ "predicates-tree",
+ "wait-timeout",
+]
+
+[[package]]
 name = "assert_fs"
 version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -87,6 +102,12 @@ dependencies = [
  "predicates-tree",
  "tempfile",
 ]
+
+[[package]]
+name = "autocfg"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
 name = "base16ct"
@@ -116,6 +137,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "234113d19d0d7d613b40e86fb654acf958910802bcceab913a4f9e7cda03b1a4"
 dependencies = [
  "memchr",
+ "regex-automata",
  "serde",
 ]
 
@@ -277,6 +299,7 @@ name = "dedupefs"
 version = "0.2.0-SNAPSHOT"
 dependencies = [
  "anyhow",
+ "assert_cmd",
  "assert_fs",
  "clap",
  "crazy-deduper",
@@ -286,9 +309,11 @@ dependencies = [
  "env_logger",
  "file-declutter",
  "fuser",
+ "lazy_static",
  "libc",
  "log",
  "lru",
+ "predicates",
 ]
 
 [[package]]
@@ -382,6 +407,15 @@ dependencies = [
  "anyhow",
  "clap",
  "walkdir",
+]
+
+[[package]]
+name = "float-cmp"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b09cf3155332e944990140d967ff5eceb70df778b34f77d8075db46e4704e6d8"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]
@@ -531,6 +565,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "lazy_static"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
+
+[[package]]
 name = "libc"
 version = "0.2.174"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -598,6 +638,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "normalize-line-endings"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "61807f77802ff30975e01f4f071c8ba10c022052f98b3294119f3e615d13e5be"
+
+[[package]]
+name = "num-traits"
+version = "0.2.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
+dependencies = [
+ "autocfg",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -648,7 +703,10 @@ checksum = "a5d19ee57562043d37e82899fade9a22ebab7be9cef5026b07fda9cdd4293573"
 dependencies = [
  "anstyle",
  "difflib",
+ "float-cmp",
+ "normalize-line-endings",
  "predicates-core",
+ "regex",
 ]
 
 [[package]]
@@ -913,6 +971,15 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
+
+[[package]]
+name = "wait-timeout"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "09ac3b126d3914f9849036f826e054cbabdc8519970b8998ddaf3b5bd3c65f11"
+dependencies = [
+ "libc",
+]
 
 [[package]]
 name = "walkdir"

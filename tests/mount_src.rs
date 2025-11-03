@@ -5,7 +5,7 @@ use std::thread::sleep;
 use assert_fs::TempDir;
 use assert_fs::prelude::*;
 use crazy_deduper::{Deduper, HashingAlgorithm, Hydrator};
-use dedupefs::DedupeFS;
+use dedupefs::{DedupeFS, DedupeReverseFS};
 
 #[test]
 fn mirror_source() -> Result<(), Box<dyn Error>> {
@@ -15,6 +15,9 @@ fn mirror_source() -> Result<(), Box<dyn Error>> {
 
     let mountpoint = tempdir.child("mountpoint");
     mountpoint.create_dir_all()?;
+
+    let mountpoint_reverse = tempdir.child("mountpoint_reverse");
+    mountpoint_reverse.create_dir_all()?;
 
     let deduped = tempdir.child("deduped");
     deduped.create_dir_all()?;
@@ -77,6 +80,19 @@ fn mirror_source() -> Result<(), Box<dyn Error>> {
         assert_eq!(
             modtime_before, modtime_after,
             "Unchanged cache file was modified"
+        );
+    }
+
+    {
+        let filesystem = DedupeFS::new(&source, vec![&cache_for_mount], HashingAlgorithm::SHA1, 3);
+        let _session = filesystem.mount(&mountpoint)?;
+
+        let filesystem_reverse = DedupeReverseFS::new(&mountpoint, vec![&cache_for_mount], 3);
+        let _session_reverse = filesystem_reverse.mount(&mountpoint_reverse)?;
+
+        assert!(
+            !dir_diff::is_different(&source, &mountpoint_reverse).unwrap(),
+            "Source and reverse mount are different"
         );
     }
 
