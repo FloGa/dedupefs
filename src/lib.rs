@@ -139,10 +139,13 @@
 
 use std::collections::HashMap;
 use std::ffi::OsString;
-use std::sync::mpsc::Receiver;
+use std::fs::Metadata;
+use std::os::unix::fs::MetadataExt;
+use std::sync::mpsc::{Receiver, channel};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use fuser::{BackgroundSession, FileAttr, FileType};
+use log::warn;
 
 pub mod cli;
 mod fs;
@@ -218,6 +221,18 @@ struct MetaSource {
     ctime: SystemTime,
 }
 
+impl MetaSource {
+    fn new(meta_source_fs: Metadata) -> Self {
+        Self {
+            uid: meta_source_fs.uid(),
+            gid: meta_source_fs.gid(),
+            atime: system_time_from_time(meta_source_fs.atime(), meta_source_fs.atime_nsec()),
+            mtime: system_time_from_time(meta_source_fs.mtime(), meta_source_fs.mtime_nsec()),
+            ctime: system_time_from_time(meta_source_fs.ctime(), meta_source_fs.ctime_nsec()),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 struct DirEntryAddArgs {
     ino: u64,
@@ -260,4 +275,26 @@ impl<T> HandlePool<T> {
         self.used.remove(&handle_id);
         self.free.push(handle_id);
     }
+}
+
+fn initialize_ctrlc_handler() -> (DropHookFn, Option<Receiver<()>>) {
+    let (tx_quitter, rx_quitter) = channel();
+
+    {
+        let tx_quitter = tx_quitter.clone();
+        if let Err(e) = ctrlc::set_handler(move || {
+            tx_quitter.send(()).unwrap();
+        }) {
+            // Failure to set the Ctrl-C handler should not cause the program to exit.
+            warn!("Error setting Ctrl-C handler: {}", e.to_string());
+        }
+    }
+
+    let drop_hook = Box::new(move || {
+        tx_quitter.send(()).unwrap();
+    });
+
+    let rx_quitter = Some(rx_quitter);
+
+    (drop_hook, rx_quitter)
 }

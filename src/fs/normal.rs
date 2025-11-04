@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
-use std::fs::File;
+use std::fs::{File, Metadata};
 use std::io::{BufReader, Read, Seek, SeekFrom};
 use std::os::unix::fs::MetadataExt;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::{Receiver, channel};
+use std::sync::mpsc::Receiver;
 use std::time::SystemTime;
 
 use crazy_deduper::{Deduper, FileChunk, HashingAlgorithm};
@@ -14,11 +14,11 @@ use fuser::{
     ReplyEntry, ReplyOpen, Request,
 };
 use libc::{EIO, EISDIR, ENOENT, ENOTDIR};
-use log::{debug, error, info, warn};
+use log::{debug, error, info};
 
 use crate::{
     ATTRS_DEFAULT, DirEntryAddArgs, DropHookFn, HandlePool, INO_CACHE, INO_ROOT, MetaSource, Node,
-    NodeType, TTL, WaitableBackgroundSession, system_time_from_time,
+    NodeType, TTL, WaitableBackgroundSession, initialize_ctrlc_handler, system_time_from_time,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -27,6 +27,17 @@ struct MetaCache {
     atime: SystemTime,
     mtime: SystemTime,
     ctime: SystemTime,
+}
+
+impl MetaCache {
+    fn new(meta_cache_fs: Metadata) -> Self {
+        Self {
+            size: meta_cache_fs.size(),
+            atime: system_time_from_time(meta_cache_fs.atime(), meta_cache_fs.atime_nsec()),
+            mtime: system_time_from_time(meta_cache_fs.mtime(), meta_cache_fs.mtime_nsec()),
+            ctime: system_time_from_time(meta_cache_fs.ctime(), meta_cache_fs.ctime_nsec()),
+        }
+    }
 }
 
 struct FileHandle {
@@ -178,40 +189,10 @@ impl DedupeFS {
         let file_handles = Default::default();
         let dir_handles = Default::default();
 
-        let (tx_quitter, rx_quitter) = channel();
+        let (drop_hook, rx_quitter) = initialize_ctrlc_handler();
 
-        {
-            let tx_quitter = tx_quitter.clone();
-            if let Err(e) = ctrlc::set_handler(move || {
-                tx_quitter.send(()).unwrap();
-            }) {
-                // Failure to set the Ctrl-C handler should not cause the program to exit.
-                warn!("Error setting Ctrl-C handler: {}", e.to_string());
-            }
-        }
-
-        let drop_hook = Box::new(move || {
-            tx_quitter.send(()).unwrap();
-        });
-
-        let rx_quitter = Some(rx_quitter);
-
-        let meta_source_fs = std::fs::metadata(&source).unwrap();
-        let meta_source = MetaSource {
-            uid: meta_source_fs.uid(),
-            gid: meta_source_fs.gid(),
-            atime: system_time_from_time(meta_source_fs.atime(), meta_source_fs.atime_nsec()),
-            mtime: system_time_from_time(meta_source_fs.mtime(), meta_source_fs.mtime_nsec()),
-            ctime: system_time_from_time(meta_source_fs.ctime(), meta_source_fs.ctime_nsec()),
-        };
-
-        let meta_cache_fs = std::fs::metadata(&cache_file).unwrap();
-        let meta_cache = MetaCache {
-            size: meta_cache_fs.size(),
-            atime: system_time_from_time(meta_cache_fs.atime(), meta_cache_fs.atime_nsec()),
-            mtime: system_time_from_time(meta_cache_fs.mtime(), meta_cache_fs.mtime_nsec()),
-            ctime: system_time_from_time(meta_cache_fs.ctime(), meta_cache_fs.ctime_nsec()),
-        };
+        let meta_source = MetaSource::new(std::fs::metadata(&source).unwrap());
+        let meta_cache = MetaCache::new(std::fs::metadata(&cache_file).unwrap());
 
         DedupeFS {
             file_handles,
