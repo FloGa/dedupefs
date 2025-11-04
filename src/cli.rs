@@ -86,6 +86,30 @@ struct CommandCheckCache {
 
 #[derive(Debug, Parser)]
 #[command(author, version, long_about = None)]
+#[command(name = "dedupefs_list_missing_chunks")]
+#[command(about = "List chunks from cache files that are not present in the source directory.")]
+struct CommandListMissingChunks {
+    /// Source directory
+    source: PathBuf,
+
+    /// Path to cache file
+    ///
+    /// Can be used multiple times. The files are read in reverse order, so they should be sorted
+    /// with the most accurate ones in the beginning. They will only be read, not written.
+    #[arg(long)]
+    cache_file: Vec<PathBuf>,
+
+    /// Also display the reason for the missing or invalid chunk
+    #[arg(long)]
+    with_reason: bool,
+
+    /// Separate file names with null character instead of newline
+    #[arg(short = '0')]
+    null: bool,
+}
+
+#[derive(Debug, Parser)]
+#[command(author, version, long_about = None)]
 #[command(name = "dedupefs_list_extra_files")]
 #[command(about = "List files not present in any cache files.")]
 struct CommandListExtraFiles {
@@ -234,8 +258,33 @@ impl Cli {
             println!("Cache is OK");
             Ok(())
         } else {
-            anyhow::bail!("Cache is not OK.")
+            anyhow::bail!(
+                "Cache is not OK. Use `dedupefs_list_missing_chunks` to find out which chunks are missing."
+            )
         }
+    }
+
+    pub fn list_missing_chunks() -> Result<()> {
+        env_logger::init();
+
+        let args = CommandListMissingChunks::parse();
+        for (path, reason) in Hydrator::new(args.source, args.cache_file).list_missing_chunks(3) {
+            if args.null {
+                if args.with_reason {
+                    print!("{}: {}\0", reason, path.display());
+                } else {
+                    print!("{}\0", path.display());
+                }
+            } else {
+                if args.with_reason {
+                    println!("{}: {}", reason, path.display());
+                } else {
+                    println!("{}", path.display());
+                }
+            }
+        }
+
+        Ok(())
     }
 
     pub fn list_extra_files() -> Result<()> {
@@ -297,6 +346,11 @@ mod tests {
     #[test]
     fn verify_cli_check_cache() {
         CommandCheckCache::command().debug_assert()
+    }
+
+    #[test]
+    fn verify_cli_list_missing_chunks() {
+        CommandListMissingChunks::command().debug_assert()
     }
 
     #[test]
