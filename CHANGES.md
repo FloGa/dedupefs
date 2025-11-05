@@ -49,6 +49,8 @@
         will always be backward compatible. Older cache formats will always be
         valid for reading. For writing, the latest cache format will be used.
 
+-   Make declutter level configurable in helpers
+
 # Changes in 0.1.1
 
 -   Update fuser for security fixes
