@@ -184,7 +184,8 @@ impl Cli {
         env_logger::init();
 
         let args = CommandCheckCache::parse();
-        if Hydrator::new(args.source, args.cache_file).check_cache() {
+
+        if Hydrator::new(args.source, args.cache_file).check_cache(3) {
             println!("Cache is OK");
             Ok(())
         } else {
@@ -196,6 +197,7 @@ impl Cli {
         env_logger::init();
 
         let args = CommandListExtraFiles::parse();
+
         for path in Hydrator::new(args.source, args.cache_file).list_extra_files(3) {
             if args.null {
                 print!("{}\0", path.display());

@@ -84,9 +84,9 @@ dependencies = [
 
 [[package]]
 name = "base16ct"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c7f02d4ea65f2c1853089ffd8d2787bdbc63de2f0d29dedbcf8ccdfa0ccd4cf"
+checksum = "d8b59d472eab27ade8d770dcb11da7201c11234bef9f82ce7aa517be028d462b"
 
 [[package]]
 name = "bitflags"
@@ -193,9 +193,9 @@ dependencies = [
 
 [[package]]
 name = "crazy-deduper"
-version = "0.1.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d5b328caa2a4fc376173565ba8c3f232eecba292f32bddd30a7ad114bb998818"
+checksum = "a8959d778bb7df413b7d2ed51958a1f7dc47732994093184f1e4743f30dd3006"
 dependencies = [
  "anyhow",
  "base16ct",
