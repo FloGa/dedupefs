@@ -30,6 +30,25 @@
 
 -   Make declutter_level configurable
 
+-   Upgrade crazy-deduper
+
+    This also introduces a new version of the cache file format.
+
+    Besides many internal fixes and optimizations, the new cache format
+    brings:
+
+        -   Short keys: No more "nanos_since_epoch" all over the place,
+            instead we use one-letter-keys now.
+        -   Hashing algorithm is only stored once now.
+        -   Paths are stored in a nested fashion.
+
+        This results in a much smaller cache file than before, even with
+        bigger dedupe caches.
+
+        Furthermore, the cache format version is implemented in a way that it
+        will always be backward compatible. Older cache formats will always be
+        valid for reading. For writing, the latest cache format will be used.
+
 # Changes in 0.1.1
 
 -   Update fuser for security fixes
@@ -37,4 +56,3 @@
 # Changes in 0.1.0
 
 Initial release.
-
