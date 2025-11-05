@@ -138,14 +138,19 @@
 //! - Provide better documentation with examples and use case descriptions.
 
 use std::collections::HashMap;
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::fs::Metadata;
 use std::os::unix::fs::MetadataExt;
+use std::path::Path;
 use std::sync::mpsc::{Receiver, channel};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use fuser::{BackgroundSession, FileAttr, FileType};
-use log::warn;
+use fuser::{
+    BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyDirectory,
+    ReplyEmpty, ReplyEntry, ReplyOpen,
+};
+use libc::{ENOENT, ENOTDIR};
+use log::{info, warn};
 
 pub mod cli;
 mod fs;
@@ -206,7 +211,7 @@ enum NodeType {
 }
 
 #[derive(Debug)]
-struct Node {
+pub struct Node {
     nlink: u32,
     parent: u64,
     node_type: NodeType,
@@ -297,4 +302,145 @@ fn initialize_ctrlc_handler() -> (DropHookFn, Option<Receiver<()>>) {
     let rx_quitter = Some(rx_quitter);
 
     (drop_hook, rx_quitter)
+}
+
+pub trait Mountable {
+    fn get_fsname() -> String;
+    fn get_quitter_receiver_option_mut(&mut self) -> &mut Option<Receiver<()>>;
+
+    fn mount(
+        mut self,
+        mountpoint: impl AsRef<Path>,
+    ) -> Result<WaitableBackgroundSession, Box<dyn std::error::Error>>
+    where
+        Self: Filesystem + Send + Sized + 'static,
+    {
+        info!("mount: {:?}", mountpoint.as_ref());
+
+        let rx_quitter = std::mem::take(self.get_quitter_receiver_option_mut()).unwrap();
+
+        let options = vec![MountOption::RO, MountOption::FSName(Self::get_fsname())];
+
+        let _session = fuser::spawn_mount2(self, &mountpoint, options.as_ref())?;
+        Ok(WaitableBackgroundSession {
+            _session,
+            rx_quitter,
+        })
+    }
+}
+
+trait FilesystemShared {
+    fn get_node_map(&self) -> &HashMap<u64, Node>;
+    fn get_dir_handles(&self) -> &HandlePool<Vec<DirEntryAddArgs>>;
+    fn get_dir_handles_mut(&mut self) -> &mut HandlePool<Vec<DirEntryAddArgs>>;
+
+    fn create_attrs_for_file(&self, ino: u64, size: u64, mtime: SystemTime) -> FileAttr;
+    fn create_attrs_for_dir(&self, ino: u64, nlink: u32) -> FileAttr;
+    fn get_attr_from_ino(&self, ino: u64) -> Option<FileAttr>;
+
+    fn get_ino_from_parent_and_name(&self, parent: u64, name: impl AsRef<OsStr>) -> Option<u64> {
+        self.get_node_map()
+            .get(&parent)
+            .and_then(|parent_node| {
+                if let NodeType::Directory { children } = &parent_node.node_type {
+                    children.get(name.as_ref())
+                } else {
+                    None
+                }
+            })
+            .map(|ino| *ino)
+    }
+
+    fn lookup(&mut self, parent: u64, name: &OsStr, reply: ReplyEntry) {
+        info!("lookup: {:?}", (parent, name));
+
+        if let Some(ino) = self.get_ino_from_parent_and_name(parent, name) {
+            if let Some(attr) = self.get_attr_from_ino(ino) {
+                reply.entry(&TTL, &attr, 0);
+                return;
+            }
+        }
+
+        reply.error(ENOENT);
+    }
+
+    fn getattr(&mut self, ino: u64, reply: ReplyAttr) {
+        info!("getattr: {:?}", ino);
+
+        if let Some(attr) = self.get_attr_from_ino(ino) {
+            reply.attr(&TTL, &attr);
+            return;
+        }
+
+        reply.error(ENOENT);
+    }
+
+    fn opendir(&mut self, ino: u64, reply: ReplyOpen) {
+        info!("opendir: {}", ino);
+
+        let Some(node) = self.get_node_map().get(&ino) else {
+            reply.error(ENOENT);
+            return;
+        };
+
+        let NodeType::Directory { children } = &node.node_type else {
+            reply.error(ENOTDIR);
+            return;
+        };
+
+        let entries = std::iter::once(DirEntryAddArgs {
+            ino,
+            kind: FileType::Directory,
+            name: OsString::from("."),
+        })
+        .chain(std::iter::once(DirEntryAddArgs {
+            ino: node.parent,
+            kind: FileType::Directory,
+            name: OsString::from(".."),
+        }))
+        .chain(children.iter().filter_map(|(child_name, child_ino)| {
+            if let Some(child_node) = self.get_node_map().get(&child_ino) {
+                Some(DirEntryAddArgs {
+                    ino: *child_ino,
+                    kind: match child_node.node_type {
+                        NodeType::File(_) => FileType::RegularFile,
+                        NodeType::Directory { .. } => FileType::Directory,
+                    },
+                    name: child_name.clone(),
+                })
+            } else {
+                None
+            }
+        }))
+        .collect();
+
+        let fh = self.get_dir_handles_mut().insert(entries);
+        reply.opened(fh, 0);
+    }
+
+    fn readdir(&mut self, fh: u64, offset: i64, mut reply: ReplyDirectory) {
+        info!("readdir: fh={fh}, offset={offset}");
+
+        let entries = self.get_dir_handles().used.get(&fh).unwrap();
+        for (index, entry) in entries.iter().enumerate().skip(0.max(offset as usize)) {
+            let is_full = reply.add(
+                entry.ino,
+                (index + 1) as i64,
+                entry.kind,
+                entry.name.as_os_str(),
+            );
+
+            if is_full {
+                break;
+            }
+        }
+
+        reply.ok();
+    }
+
+    fn releasedir(&mut self, fh: u64, reply: ReplyEmpty) {
+        info!("releasedir: {}", fh);
+        self.get_dir_handles_mut().remove(fh);
+        reply.ok();
+    }
 }

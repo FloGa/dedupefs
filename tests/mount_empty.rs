@@ -3,7 +3,7 @@ use std::error::Error;
 use assert_fs::TempDir;
 use assert_fs::prelude::*;
 use crazy_deduper::HashingAlgorithm;
-use dedupefs::{DedupeFS, DedupeReverseFS};
+use dedupefs::{DedupeFS, DedupeReverseFS, Mountable};
 
 #[test]
 fn empty_mirror() -> Result<(), Box<dyn Error>> {

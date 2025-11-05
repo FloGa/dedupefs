@@ -5,7 +5,7 @@ use std::thread::sleep;
 use assert_fs::TempDir;
 use assert_fs::prelude::*;
 use crazy_deduper::{Deduper, HashingAlgorithm, Hydrator};
-use dedupefs::{DedupeFS, DedupeReverseFS};
+use dedupefs::{DedupeFS, DedupeReverseFS, Mountable};
 
 #[test]
 fn mirror_source() -> Result<(), Box<dyn Error>> {

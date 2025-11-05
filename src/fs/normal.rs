@@ -10,15 +10,15 @@ use std::time::SystemTime;
 use crazy_deduper::{Deduper, FileChunk, HashingAlgorithm};
 use file_declutter::FileDeclutter;
 use fuser::{
-    FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData, ReplyDirectory, ReplyEmpty,
-    ReplyEntry, ReplyOpen, Request,
+    FileAttr, FileType, Filesystem, ReplyAttr, ReplyData, ReplyDirectory, ReplyEmpty, ReplyEntry,
+    ReplyOpen, Request,
 };
-use libc::{EIO, EISDIR, ENOENT, ENOTDIR};
+use libc::{EIO, EISDIR, ENOENT};
 use log::{debug, error, info};
 
 use crate::{
-    ATTRS_DEFAULT, DirEntryAddArgs, DropHookFn, HandlePool, INO_CACHE, INO_ROOT, MetaSource, Node,
-    NodeType, TTL, WaitableBackgroundSession, initialize_ctrlc_handler, system_time_from_time,
+    ATTRS_DEFAULT, DirEntryAddArgs, DropHookFn, FilesystemShared, HandlePool, INO_CACHE, INO_ROOT,
+    MetaSource, Mountable, Node, NodeType, initialize_ctrlc_handler, system_time_from_time,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -207,28 +207,32 @@ impl DedupeFS {
             meta_cache,
         }
     }
+}
 
-    pub fn mount(
-        mut self,
-        mountpoint: impl AsRef<Path>,
-    ) -> Result<WaitableBackgroundSession, Box<dyn std::error::Error>> {
-        info!("mount: {:?}", mountpoint.as_ref());
-
-        let rx_quitter = std::mem::take(&mut self.rx_quitter).unwrap();
-
-        let options = vec![
-            MountOption::RO,
-            MountOption::FSName(String::from("dedupefs")),
-        ];
-
-        let _session = fuser::spawn_mount2(self, &mountpoint, options.as_ref())?;
-        Ok(WaitableBackgroundSession {
-            _session,
-            rx_quitter,
-        })
+impl Mountable for DedupeFS {
+    fn get_fsname() -> String {
+        String::from("dedupefs")
     }
 
-    fn create_attrs_for_file(&self, ino: u64, size: u64) -> FileAttr {
+    fn get_quitter_receiver_option_mut(&mut self) -> &mut Option<Receiver<()>> {
+        &mut self.rx_quitter
+    }
+}
+
+impl FilesystemShared for DedupeFS {
+    fn get_node_map(&self) -> &HashMap<u64, Node> {
+        &self.nodes
+    }
+
+    fn get_dir_handles(&self) -> &HandlePool<Vec<DirEntryAddArgs>> {
+        &self.dir_handles
+    }
+
+    fn get_dir_handles_mut(&mut self) -> &mut HandlePool<Vec<DirEntryAddArgs>> {
+        &mut self.dir_handles
+    }
+
+    fn create_attrs_for_file(&self, ino: u64, size: u64, _mtime: SystemTime) -> FileAttr {
         FileAttr {
             ino,
             size,
@@ -244,26 +248,13 @@ impl DedupeFS {
             kind: FileType::Directory,
             perm: 0o755,
             nlink,
-            ..self.create_attrs_for_file(ino, 0)
+            ..self.create_attrs_for_file(ino, 0, SystemTime::now())
         }
-    }
-
-    fn get_ino_from_parent_and_name(&self, parent: u64, name: impl AsRef<OsStr>) -> Option<u64> {
-        self.nodes
-            .get(&parent)
-            .and_then(|parent_node| {
-                if let NodeType::Directory { children } = &parent_node.node_type {
-                    children.get(name.as_ref())
-                } else {
-                    None
-                }
-            })
-            .map(|ino| *ino)
     }
 
     fn get_attr_from_ino(&self, ino: u64) -> Option<FileAttr> {
         if ino == INO_CACHE {
-            let mut attr = self.create_attrs_for_file(ino, self.meta_cache.size);
+            let mut attr = self.create_attrs_for_file(ino, self.meta_cache.size, SystemTime::now());
             attr.atime = self.meta_cache.atime;
             attr.mtime = self.meta_cache.mtime;
             attr.ctime = self.meta_cache.ctime;
@@ -273,7 +264,7 @@ impl DedupeFS {
                 NodeType::File(name) => self
                     .hashed_chunks
                     .get(name)
-                    .map(|chunk| self.create_attrs_for_file(ino, chunk.size)),
+                    .map(|chunk| self.create_attrs_for_file(ino, chunk.size, SystemTime::now())),
                 NodeType::Directory { .. } => {
                     let mut attr = self.create_attrs_for_dir(ino, node.nlink);
                     if ino == INO_ROOT {
@@ -296,31 +287,15 @@ impl Drop for DedupeFS {
 
 impl Filesystem for DedupeFS {
     fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
-        info!("lookup: {:?}", (parent, name));
-
-        if let Some(ino) = self.get_ino_from_parent_and_name(parent, name) {
-            if let Some(attr) = self.get_attr_from_ino(ino) {
-                reply.entry(&TTL, &attr, 0);
-                return;
-            }
-        }
-
-        reply.error(ENOENT);
+        FilesystemShared::lookup(self, parent, name, reply);
     }
 
     fn getattr(&mut self, _req: &Request, ino: u64, _fh: Option<u64>, reply: ReplyAttr) {
-        info!("getattr: {:?}", ino);
-
-        if let Some(attr) = self.get_attr_from_ino(ino) {
-            reply.attr(&TTL, &attr);
-            return;
-        }
-
-        reply.error(ENOENT);
+        FilesystemShared::getattr(self, ino, reply);
     }
 
     fn open(&mut self, _req: &Request, ino: u64, _flags: i32, reply: ReplyOpen) {
-        info!("open: {:?}", (ino));
+        info!("open: {:?}", ino);
 
         let Some(node) = self.nodes.get(&ino) else {
             reply.error(ENOENT);
@@ -422,73 +397,11 @@ impl Filesystem for DedupeFS {
     }
 
     fn opendir(&mut self, _req: &Request<'_>, ino: u64, _flags: i32, reply: ReplyOpen) {
-        info!("opendir: {}", ino);
-
-        let Some(node) = self.nodes.get(&ino) else {
-            reply.error(ENOENT);
-            return;
-        };
-
-        let NodeType::Directory { children } = &node.node_type else {
-            reply.error(ENOTDIR);
-            return;
-        };
-
-        let entries = std::iter::once(DirEntryAddArgs {
-            ino,
-            kind: FileType::Directory,
-            name: OsString::from("."),
-        })
-        .chain(std::iter::once(DirEntryAddArgs {
-            ino: node.parent,
-            kind: FileType::Directory,
-            name: OsString::from(".."),
-        }))
-        .chain(children.iter().filter_map(|(child_name, child_ino)| {
-            if let Some(child_node) = self.nodes.get(&child_ino) {
-                Some(DirEntryAddArgs {
-                    ino: *child_ino,
-                    kind: match child_node.node_type {
-                        NodeType::File(_) => FileType::RegularFile,
-                        NodeType::Directory { .. } => FileType::Directory,
-                    },
-                    name: child_name.clone(),
-                })
-            } else {
-                None
-            }
-        }))
-        .collect();
-
-        let fh = self.dir_handles.insert(entries);
-        reply.opened(fh, 0);
+        FilesystemShared::opendir(self, ino, reply);
     }
 
-    fn readdir(
-        &mut self,
-        _req: &Request,
-        _ino: u64,
-        fh: u64,
-        offset: i64,
-        mut reply: ReplyDirectory,
-    ) {
-        info!("readdir: fh={fh}, offset={offset}");
-
-        let entries = self.dir_handles.used.get(&fh).unwrap();
-        for (index, entry) in entries.iter().enumerate().skip(0.max(offset as usize)) {
-            let is_full = reply.add(
-                entry.ino,
-                (index + 1) as i64,
-                entry.kind,
-                entry.name.as_os_str(),
-            );
-
-            if is_full {
-                break;
-            }
-        }
-
-        reply.ok();
+    fn readdir(&mut self, _req: &Request, _ino: u64, fh: u64, offset: i64, reply: ReplyDirectory) {
+        FilesystemShared::readdir(self, fh, offset, reply);
     }
 
     fn releasedir(
@@ -499,8 +412,6 @@ impl Filesystem for DedupeFS {
         _flags: i32,
         reply: ReplyEmpty,
     ) {
-        info!("releasedir: {}", fh);
-        self.dir_handles.remove(fh);
-        reply.ok();
+        FilesystemShared::releasedir(self, fh, reply);
     }
 }

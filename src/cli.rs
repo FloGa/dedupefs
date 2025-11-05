@@ -5,7 +5,7 @@ use clap::{Parser, ValueEnum};
 use crazy_deduper::{HashingAlgorithm, Hydrator};
 use daemonize::Daemonize;
 
-use crate::{DedupeFS, DedupeReverseFS, WaitableBackgroundSession};
+use crate::{DedupeFS, DedupeReverseFS, Mountable, WaitableBackgroundSession};
 
 #[derive(Debug, Parser)]
 #[command(author, version, about, long_about = None)]
