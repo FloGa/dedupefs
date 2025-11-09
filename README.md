@@ -103,8 +103,14 @@ dedupefs --cache-file cache.json.zst source deduped
 If the cache file ends with `.zst`, it will be encoded (or decoded in the case of hydrating) using the ZSTD compression
 algorithm. For any other extension, plain JSON will be used.
 
-Please note that for now it is not possible to mount a hydrated version of a deduped directory. This wil be added in a
-future version. For now, you can use [*Crazy Deduper*][crazy-deduper github] to physically re-hydrate your files.
+To mount a re-hydrated version of `deduped` directory to `restored`, you can use:
+
+```shell
+dedupefs --reverse --cache-file cache.json.zst deduped restored
+```
+
+Before mounting, it will be checked if all chunks present in the cache file are available in the `deduped/data`
+directory. If not, the mount will fail.
 
 ## Cache Files
 
