@@ -51,6 +51,12 @@
 
 -   Make declutter level configurable in helpers
 
+-   Implement reverse mode
+
+    With the new `--reverse` flag, a deduplicated directory along with one or
+    more cache files can now be mounted to appear as a re-hydrated version of
+    itself.
+
 # Changes in 0.1.1
 
 -   Update fuser for security fixes
