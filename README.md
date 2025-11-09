@@ -138,6 +138,46 @@ In the mounted deduped directory, the first cache file given on the command line
 directly under the mountpoint. next to the data directory. When uploading your chunks, always make sure to also upload
 this cache file, otherwise you wil not be able to properly re-hydrate your files afterward!
 
+## Helper Commands
+
+There are several helper commands available to work with the cache files and to inspect the internal state of the
+deduplicated data chunks:
+
+### Check Cache
+
+<!--% !cargo --quiet run --bin dedupefs_check_cache -- --help %-->
+
+```text
+```
+
+### Create Cache
+
+<!--% !cargo --quiet run --bin dedupefs_create_cache -- --help %-->
+
+```text
+```
+
+### Delete Extra Files
+
+<!--% !cargo --quiet run --bin dedupefs_delete_extra_files -- --help %-->
+
+```text
+```
+
+### List Extra Files
+
+<!--% !cargo --quiet run --bin dedupefs_list_extra_files -- --help %-->
+
+```text
+```
+
+### List Missing Chunks
+
+<!--% !cargo --quiet run --bin dedupefs_list_missing_chunks -- --help %-->
+
+```text
+```
+
 ## TODO
 
 - Support mounting a re-hydrated version of a deduped directory.
