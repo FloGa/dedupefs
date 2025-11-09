@@ -180,7 +180,5 @@ deduplicated data chunks:
 
 ## TODO
 
-- Support mounting a re-hydrated version of a deduped directory.
-- Make declutter level configurable (fixed to 3 at the moment).
 - Make chunk size configurable (via *Crazy Deduper*, fixed to 1MB at the moment).
 - Provide better documentation with examples and use case descriptions.
