@@ -1,6 +1,6 @@
 [package]
 name = "dedupefs"
-version = "0.2.0-SNAPSHOT"
+version = "0.2.0"
 edition = "2024"
 
 default-run = "dedupefs"
