@@ -85,6 +85,9 @@
 //!
 //!           [default: 3]
 //!
+//!       --reverse
+//!           Reverse mode, present chunks re-hydrated
+//!
 //!   -h, --help
 //!           Print help (see a summary with '-h')
 //!
@@ -101,8 +104,14 @@
 //! If the cache file ends with `.zst`, it will be encoded (or decoded in the case of hydrating) using the ZSTD compression
 //! algorithm. For any other extension, plain JSON will be used.
 //!
-//! Please note that for now it is not possible to mount a hydrated version of a deduped directory. This wil be added in a
-//! future version. For now, you can use [*Crazy Deduper*][crazy-deduper github] to physically re-hydrate your files.
+//! To mount a re-hydrated version of `deduped` directory to `restored`, you can use:
+//!
+//! ```shell
+//! dedupefs --reverse --cache-file cache.json.zst deduped restored
+//! ```
+//!
+//! Before mounting, it will be checked if all chunks present in the cache file are available in the `deduped/data`
+//! directory. If not, the mount will fail.
 //!
 //! ## Cache Files
 //!
@@ -130,33 +139,197 @@
 //! directly under the mountpoint. next to the data directory. When uploading your chunks, always make sure to also upload
 //! this cache file, otherwise you wil not be able to properly re-hydrate your files afterward!
 //!
+//! ## Helper Commands
+//!
+//! There are several helper commands available to work with the cache files and to inspect the internal state of the
+//! deduplicated data chunks:
+//!
+//! ### Check Cache
+//!
+//! ```text
+//! Check if cache file is valid and all chunks exist.
+//!
+//! Usage: dedupefs_check_cache [OPTIONS] <SOURCE>
+//!
+//! Arguments:
+//!   <SOURCE>
+//!           Source directory to deduped files
+//!
+//! Options:
+//!       --cache-file <CACHE_FILE>
+//!           Path to cache file
+//!
+//!           Can be used multiple times. The files are read in reverse order, so they should be sorted with the most accurate ones in the beginning. They will only be read, not written.
+//!
+//!       --declutter-levels <DECLUTTER_LEVELS>
+//!           Declutter files into this many subdirectory levels
+//!
+//!           [default: 3]
+//!
+//!   -h, --help
+//!           Print help (see a summary with '-h')
+//!
+//!   -V, --version
+//!           Print version
+//! ```
+//!
+//! ### Create Cache
+//!
+//! ```text
+//! Only create cache file without actually mounting.
+//!
+//! Usage: dedupefs_create_cache [OPTIONS] <SOURCE>
+//!
+//! Arguments:
+//!   <SOURCE>
+//!           Source directory
+//!
+//! Options:
+//!       --cache-file <CACHE_FILE>
+//!           Path to cache file
+//!
+//!           Can be used multiple times. The files are read in reverse order, so they should be sorted with the most accurate ones in the beginning. The first given will be written.
+//!
+//!       --hashing-algorithm <HASHING_ALGORITHM>
+//!           Hashing algorithm to use for chunk filenames
+//!
+//!           [default: sha1]
+//!           [possible values: md5, sha1, sha256, sha512]
+//!
+//!       --declutter-levels <DECLUTTER_LEVELS>
+//!           Declutter files into this many subdirectory levels
+//!
+//!           [default: 3]
+//!
+//!   -h, --help
+//!           Print help (see a summary with '-h')
+//!
+//!   -V, --version
+//!           Print version
+//! ```
+//!
+//! ### Delete Extra Files
+//!
+//! ```text
+//! Delete files not present in any cache files.
+//!
+//! Usage: dedupefs_delete_extra_files [OPTIONS] <SOURCE>
+//!
+//! Arguments:
+//!   <SOURCE>
+//!           Source directory
+//!
+//! Options:
+//!       --cache-file <CACHE_FILE>
+//!           Path to cache file
+//!
+//!           Can be used multiple times. The files are read in reverse order, so they should be sorted with the most accurate ones in the beginning. They will only be read, not written.
+//!
+//!   -v
+//!           List deleted files
+//!
+//!   -f
+//!           Force deletion
+//!
+//!       --declutter-levels <DECLUTTER_LEVELS>
+//!           Declutter files into this many subdirectory levels
+//!
+//!           [default: 3]
+//!
+//!   -h, --help
+//!           Print help (see a summary with '-h')
+//!
+//!   -V, --version
+//!           Print version
+//! ```
+//!
+//! ### List Extra Files
+//!
+//! ```text
+//! List files not present in any cache files.
+//!
+//! Usage: dedupefs_list_extra_files [OPTIONS] <SOURCE>
+//!
+//! Arguments:
+//!   <SOURCE>
+//!           Source directory
+//!
+//! Options:
+//!       --cache-file <CACHE_FILE>
+//!           Path to cache file
+//!
+//!           Can be used multiple times. The files are read in reverse order, so they should be sorted with the most accurate ones in the beginning. They will only be read, not written.
+//!
+//!   -0
+//!           Separate file names with null character instead of newline
+//!
+//!       --declutter-levels <DECLUTTER_LEVELS>
+//!           Declutter files into this many subdirectory levels
+//!
+//!           [default: 3]
+//!
+//!   -h, --help
+//!           Print help (see a summary with '-h')
+//!
+//!   -V, --version
+//!           Print version
+//! ```
+//!
+//! ### List Missing Chunks
+//!
+//! ```text
+//! List chunks from cache files that are not present in the source directory.
+//!
+//! Usage: dedupefs_list_missing_chunks [OPTIONS] <SOURCE>
+//!
+//! Arguments:
+//!   <SOURCE>
+//!           Source directory
+//!
+//! Options:
+//!       --cache-file <CACHE_FILE>
+//!           Path to cache file
+//!
+//!           Can be used multiple times. The files are read in reverse order, so they should be sorted with the most accurate ones in the beginning. They will only be read, not written.
+//!
+//!       --with-reason
+//!           Also display the reason for the missing or invalid chunk
+//!
+//!   -0
+//!           Separate file names with null character instead of newline
+//!
+//!   -h, --help
+//!           Print help (see a summary with '-h')
+//!
+//!   -V, --version
+//!           Print version
+//! ```
+//!
 //! ## TODO
 //!
-//! - Support mounting a re-hydrated version of a deduped directory.
-//! - Make declutter level configurable (fixed to 3 at the moment).
-//! - Make chunk site configurable (via *Crazy Deduper*, fixed to 1MB at the moment).
+//! - Make chunk size configurable (via *Crazy Deduper*, fixed to 1MB at the moment).
 //! - Provide better documentation with examples and use case descriptions.
 
 use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
-use std::fs::File;
-use std::io::{BufReader, Read, Seek, SeekFrom};
+use std::fs::Metadata;
 use std::os::unix::fs::MetadataExt;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::mpsc::{Receiver, channel};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use std::{fs, iter};
 
-use crazy_deduper::{Deduper, FileChunk, HashingAlgorithm};
-use file_declutter::FileDeclutter;
 use fuser::{
-    BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyData,
-    ReplyDirectory, ReplyEmpty, ReplyEntry, ReplyOpen, Request,
+    BackgroundSession, FileAttr, FileType, Filesystem, MountOption, ReplyAttr, ReplyDirectory,
+    ReplyEmpty, ReplyEntry, ReplyOpen,
 };
-use libc::{EIO, EISDIR, ENOENT, ENOTDIR};
-use log::{debug, error, info, warn};
+use libc::{ENOENT, ENOTDIR};
+use log::{info, warn};
 
 pub mod cli;
+mod fs;
+
+pub use fs::normal::DedupeFS;
+pub use fs::reverse::DedupeReverseFS;
 
 const TTL: Duration = Duration::from_secs(1);
 
@@ -211,7 +384,7 @@ enum NodeType {
 }
 
 #[derive(Debug)]
-struct Node {
+pub struct Node {
     nlink: u32,
     parent: u64,
     node_type: NodeType,
@@ -226,32 +399,16 @@ struct MetaSource {
     ctime: SystemTime,
 }
 
-#[derive(Clone, Copy, Debug)]
-struct MetaCache {
-    size: u64,
-    atime: SystemTime,
-    mtime: SystemTime,
-    ctime: SystemTime,
-}
-
-pub struct DedupeFS {
-    source: PathBuf,
-    file_handles: HandlePool<FileHandle>,
-    dir_handles: HandlePool<Vec<DirEntryAddArgs>>,
-    drop_hook: DropHookFn,
-    rx_quitter: Option<Receiver<()>>,
-    cache_file: PathBuf,
-    hashed_chunks: HashMap<OsString, FileChunk>,
-    nodes: HashMap<u64, Node>,
-    meta_source: MetaSource,
-    meta_cache: MetaCache,
-}
-
-struct FileHandle {
-    file: BufReader<File>,
-    start: u64,
-    size: u64,
-    offset: u64,
+impl MetaSource {
+    fn new(meta_source_fs: Metadata) -> Self {
+        Self {
+            uid: meta_source_fs.uid(),
+            gid: meta_source_fs.gid(),
+            atime: system_time_from_time(meta_source_fs.atime(), meta_source_fs.atime_nsec()),
+            mtime: system_time_from_time(meta_source_fs.mtime(), meta_source_fs.mtime_nsec()),
+            ctime: system_time_from_time(meta_source_fs.ctime(), meta_source_fs.ctime_nsec()),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -298,196 +455,44 @@ impl<T> HandlePool<T> {
     }
 }
 
-impl DedupeFS {
-    pub fn new(
-        source: impl AsRef<Path>,
-        caches: Vec<impl AsRef<Path>>,
-        hashing_algorithm: HashingAlgorithm,
-        declutter_level: usize,
-    ) -> DedupeFS {
-        info!("new: {:?}", source.as_ref());
+fn initialize_ctrlc_handler() -> (DropHookFn, Option<Receiver<()>>) {
+    let (tx_quitter, rx_quitter) = channel();
 
-        let deduper = Deduper::new(
-            source.as_ref(),
-            caches.iter().map(|p| p.as_ref()).collect(),
-            hashing_algorithm,
-            false,
-        );
-
-        info!("dedupe initialized");
-
-        let mut last_write = SystemTime::now();
-        let mut write_necessary = false;
-
-        let hashed_chunks = deduper
-            .cache
-            .get_chunks()
-            .unwrap()
-            .map(|(hash, chunk, dirty)| {
-                if dirty {
-                    write_necessary = true;
-                    if last_write.elapsed().unwrap().as_secs() > 5 {
-                        deduper.write_cache();
-                        info!("dedupe cache written");
-                        last_write = SystemTime::now();
-                    }
-                }
-
-                debug!("{hash}: {chunk:?}");
-
-                (OsString::from(&hash), chunk)
-            })
-            .collect::<HashMap<_, _>>();
-
-        let cache_file = caches.first().unwrap().as_ref().to_path_buf();
-        let cache_filename = OsString::from(cache_file.file_name().unwrap());
-
-        if write_necessary || !cache_file.exists() {
-            deduper.write_cache();
-            info!("dedupe cache written");
-        }
-
-        let mut nodes = HashMap::new();
-        let mut paths = HashMap::new();
-
-        // Cache
-        nodes.insert(
-            INO_CACHE,
-            Node {
-                nlink: 1,
-                parent: INO_ROOT,
-                node_type: NodeType::File(cache_filename.clone()),
-            },
-        );
-
-        // Root
-        nodes.insert(
-            INO_ROOT,
-            Node {
-                nlink: 2,
-                parent: INO_ROOT,
-                node_type: NodeType::Directory {
-                    children: HashMap::from([(cache_filename, INO_CACHE)]),
-                },
-            },
-        );
-        paths.insert(OsString::new(), INO_ROOT);
-        let mut next_ino = nodes.iter().map(|(ino, _)| ino).max().unwrap() + 1;
-
-        for path in FileDeclutter::new_from_iter(hashed_chunks.keys().cloned().map(PathBuf::from))
-            .base(PathBuf::from("data"))
-            .levels(declutter_level)
-            .map(|(_, path)| path)
-        {
-            debug!("path: {:?}", path);
-
-            let mut acc_path = PathBuf::new();
-            let mut parent_ino = INO_ROOT;
-            for component in &path {
-                acc_path.push(component);
-
-                if !paths.contains_key(&acc_path.as_os_str().to_os_string()) {
-                    let node = if acc_path == path {
-                        Node {
-                            nlink: 1,
-                            parent: parent_ino,
-                            node_type: NodeType::File(component.to_os_string()),
-                        }
-                    } else {
-                        let parent = nodes.get_mut(&parent_ino).unwrap();
-                        parent.nlink += 1;
-
-                        Node {
-                            nlink: 2,
-                            parent: parent_ino,
-                            node_type: NodeType::Directory {
-                                children: HashMap::new(),
-                            },
-                        }
-                    };
-
-                    paths.insert(acc_path.as_os_str().to_os_string(), next_ino);
-                    nodes.insert(next_ino, node);
-
-                    if let Some(parent_node) = nodes.get_mut(&parent_ino) {
-                        if let NodeType::Directory { children } = &mut parent_node.node_type {
-                            children.insert(component.to_os_string(), next_ino);
-                        }
-                    }
-
-                    next_ino += 1;
-                }
-
-                parent_ino = *paths.get(&acc_path.as_os_str().to_os_string()).unwrap();
-            }
-        }
-
-        debug!("nodes: {:#?}", nodes);
-
-        let file_handles = Default::default();
-        let dir_handles = Default::default();
-
-        let (tx_quitter, rx_quitter) = channel();
-
-        {
-            let tx_quitter = tx_quitter.clone();
-            if let Err(e) = ctrlc::set_handler(move || {
-                tx_quitter.send(()).unwrap();
-            }) {
-                // Failure to set the Ctrl-C handler should not cause the program to exit.
-                warn!("Error setting Ctrl-C handler: {}", e.to_string());
-            }
-        }
-
-        let drop_hook = Box::new(move || {
+    {
+        let tx_quitter = tx_quitter.clone();
+        if let Err(e) = ctrlc::set_handler(move || {
             tx_quitter.send(()).unwrap();
-        });
-
-        let rx_quitter = Some(rx_quitter);
-
-        let meta_source_fs = fs::metadata(&source).unwrap();
-        let meta_source = MetaSource {
-            uid: meta_source_fs.uid(),
-            gid: meta_source_fs.gid(),
-            atime: system_time_from_time(meta_source_fs.atime(), meta_source_fs.atime_nsec()),
-            mtime: system_time_from_time(meta_source_fs.mtime(), meta_source_fs.mtime_nsec()),
-            ctime: system_time_from_time(meta_source_fs.ctime(), meta_source_fs.ctime_nsec()),
-        };
-
-        let meta_cache_fs = fs::metadata(&cache_file).unwrap();
-        let meta_cache = MetaCache {
-            size: meta_cache_fs.size(),
-            atime: system_time_from_time(meta_cache_fs.atime(), meta_cache_fs.atime_nsec()),
-            mtime: system_time_from_time(meta_cache_fs.mtime(), meta_cache_fs.mtime_nsec()),
-            ctime: system_time_from_time(meta_cache_fs.ctime(), meta_cache_fs.ctime_nsec()),
-        };
-
-        DedupeFS {
-            file_handles,
-            dir_handles,
-            source: source.as_ref().into(),
-            drop_hook,
-            rx_quitter,
-            cache_file,
-            hashed_chunks,
-            nodes,
-            meta_source,
-            meta_cache,
+        }) {
+            // Failure to set the Ctrl-C handler should not cause the program to exit.
+            warn!("Error setting Ctrl-C handler: {}", e.to_string());
         }
     }
 
-    pub fn mount(
+    let drop_hook = Box::new(move || {
+        tx_quitter.send(()).unwrap();
+    });
+
+    let rx_quitter = Some(rx_quitter);
+
+    (drop_hook, rx_quitter)
+}
+
+pub trait Mountable {
+    fn get_fsname() -> String;
+    fn get_quitter_receiver_option_mut(&mut self) -> &mut Option<Receiver<()>>;
+
+    fn mount(
         mut self,
         mountpoint: impl AsRef<Path>,
-    ) -> Result<WaitableBackgroundSession, Box<dyn std::error::Error>> {
+    ) -> Result<WaitableBackgroundSession, Box<dyn std::error::Error>>
+    where
+        Self: Filesystem + Send + Sized + 'static,
+    {
         info!("mount: {:?}", mountpoint.as_ref());
 
-        let rx_quitter = std::mem::take(&mut self.rx_quitter).unwrap();
+        let rx_quitter = std::mem::take(self.get_quitter_receiver_option_mut()).unwrap();
 
-        let options = vec![
-            MountOption::RO,
-            MountOption::FSName(String::from("dedupefs")),
-        ];
+        let options = vec![MountOption::RO, MountOption::FSName(Self::get_fsname())];
 
         let _session = fuser::spawn_mount2(self, &mountpoint, options.as_ref())?;
         Ok(WaitableBackgroundSession {
@@ -495,29 +500,19 @@ impl DedupeFS {
             rx_quitter,
         })
     }
+}
 
-    fn create_attrs_for_file(&self, ino: u64, size: u64) -> FileAttr {
-        FileAttr {
-            ino,
-            size,
-            blocks: (size + 511) / 512,
-            uid: self.meta_source.uid,
-            gid: self.meta_source.gid,
-            ..ATTRS_DEFAULT
-        }
-    }
+trait FilesystemShared {
+    fn get_node_map(&self) -> &HashMap<u64, Node>;
+    fn get_dir_handles(&self) -> &HandlePool<Vec<DirEntryAddArgs>>;
+    fn get_dir_handles_mut(&mut self) -> &mut HandlePool<Vec<DirEntryAddArgs>>;
 
-    fn create_attrs_for_dir(&self, ino: u64, nlink: u32) -> FileAttr {
-        FileAttr {
-            kind: FileType::Directory,
-            perm: 0o755,
-            nlink,
-            ..self.create_attrs_for_file(ino, 0)
-        }
-    }
+    fn create_attrs_for_file(&self, ino: u64, size: u64, mtime: SystemTime) -> FileAttr;
+    fn create_attrs_for_dir(&self, ino: u64, nlink: u32) -> FileAttr;
+    fn get_attr_from_ino(&self, ino: u64) -> Option<FileAttr>;
 
     fn get_ino_from_parent_and_name(&self, parent: u64, name: impl AsRef<OsStr>) -> Option<u64> {
-        self.nodes
+        self.get_node_map()
             .get(&parent)
             .and_then(|parent_node| {
                 if let NodeType::Directory { children } = &parent_node.node_type {
@@ -529,41 +524,7 @@ impl DedupeFS {
             .map(|ino| *ino)
     }
 
-    fn get_attr_from_ino(&self, ino: u64) -> Option<FileAttr> {
-        if ino == INO_CACHE {
-            let mut attr = self.create_attrs_for_file(ino, self.meta_cache.size);
-            attr.atime = self.meta_cache.atime;
-            attr.mtime = self.meta_cache.mtime;
-            attr.ctime = self.meta_cache.ctime;
-            Some(attr)
-        } else {
-            self.nodes.get(&ino).and_then(|node| match &node.node_type {
-                NodeType::File(name) => self
-                    .hashed_chunks
-                    .get(name)
-                    .map(|chunk| self.create_attrs_for_file(ino, chunk.size)),
-                NodeType::Directory { .. } => {
-                    let mut attr = self.create_attrs_for_dir(ino, node.nlink);
-                    if ino == INO_ROOT {
-                        attr.atime = self.meta_source.atime;
-                        attr.mtime = self.meta_source.mtime;
-                        attr.ctime = self.meta_source.ctime;
-                    }
-                    Some(attr)
-                }
-            })
-        }
-    }
-}
-
-impl Drop for DedupeFS {
-    fn drop(&mut self) {
-        let _ = &(self.drop_hook)();
-    }
-}
-
-impl Filesystem for DedupeFS {
-    fn lookup(&mut self, _req: &Request, parent: u64, name: &OsStr, reply: ReplyEntry) {
+    fn lookup(&mut self, parent: u64, name: &OsStr, reply: ReplyEntry) {
         info!("lookup: {:?}", (parent, name));
 
         if let Some(ino) = self.get_ino_from_parent_and_name(parent, name) {
@@ -576,7 +537,7 @@ impl Filesystem for DedupeFS {
         reply.error(ENOENT);
     }
 
-    fn getattr(&mut self, _req: &Request, ino: u64, _fh: Option<u64>, reply: ReplyAttr) {
+    fn getattr(&mut self, ino: u64, reply: ReplyAttr) {
         info!("getattr: {:?}", ino);
 
         if let Some(attr) = self.get_attr_from_ino(ino) {
@@ -587,112 +548,10 @@ impl Filesystem for DedupeFS {
         reply.error(ENOENT);
     }
 
-    fn open(&mut self, _req: &Request, ino: u64, _flags: i32, reply: ReplyOpen) {
-        info!("open: {:?}", (ino));
-
-        let Some(node) = self.nodes.get(&ino) else {
-            reply.error(ENOENT);
-            return;
-        };
-
-        let NodeType::File(name) = &node.node_type else {
-            reply.error(EISDIR);
-            return;
-        };
-
-        let file_handle = if ino == INO_CACHE {
-            let file = File::open(&self.cache_file).unwrap();
-            let file = BufReader::new(file);
-            FileHandle {
-                file,
-                start: 0,
-                size: self.meta_cache.size,
-                offset: 0,
-            }
-        } else {
-            let Some(chunk) = self.hashed_chunks.get(name) else {
-                error!("Inconsistent state: No chunk for file {:?}", name);
-                reply.error(EIO);
-                return;
-            };
-
-            let file = File::open(self.source.join(chunk.path.as_ref().unwrap())).unwrap();
-            let file = {
-                let mut file = BufReader::new(file);
-                file.seek(SeekFrom::Start(chunk.start)).unwrap();
-                file
-            };
-            FileHandle {
-                file,
-                start: chunk.start,
-                size: chunk.size,
-                offset: 0,
-            }
-        };
-
-        let fh = self.file_handles.insert(file_handle);
-        reply.opened(fh, 0);
-    }
-
-    fn read(
-        &mut self,
-        _req: &Request<'_>,
-        _ino: u64,
-        fh: u64,
-        offset: i64,
-        size: u32,
-        _flags: i32,
-        _lock_owner: Option<u64>,
-        reply: ReplyData,
-    ) {
-        info!("read: {:?}", (_ino, fh));
-
-        let offset = offset as u64;
-
-        let handle = self.file_handles.used.get_mut(&fh).unwrap();
-
-        if offset != handle.offset {
-            handle
-                .file
-                .seek(SeekFrom::Start(handle.start + offset))
-                .unwrap();
-            handle.offset = offset;
-        }
-
-        let size = size as u64;
-        let size = size.min(handle.size - offset.min(handle.size));
-
-        let mut buffer = vec![0; size as usize];
-        if let Err(e) = handle.file.read_exact(&mut buffer) {
-            error!("Error reading file: {}", e);
-            reply.error(EIO);
-            return;
-        };
-        handle.offset += size;
-
-        reply.data(&buffer);
-    }
-
-    fn release(
-        &mut self,
-        _req: &Request,
-        _ino: u64,
-        fh: u64,
-        _flags: i32,
-        _lock_owner: Option<u64>,
-        _flush: bool,
-        reply: ReplyEmpty,
-    ) {
-        info!("release: {:?}", (_ino, fh));
-
-        self.file_handles.remove(fh);
-        reply.ok();
-    }
-
-    fn opendir(&mut self, _req: &Request<'_>, ino: u64, _flags: i32, reply: ReplyOpen) {
+    fn opendir(&mut self, ino: u64, reply: ReplyOpen) {
         info!("opendir: {}", ino);
 
-        let Some(node) = self.nodes.get(&ino) else {
+        let Some(node) = self.get_node_map().get(&ino) else {
             reply.error(ENOENT);
             return;
         };
@@ -702,18 +561,18 @@ impl Filesystem for DedupeFS {
             return;
         };
 
-        let entries = iter::once(DirEntryAddArgs {
+        let entries = std::iter::once(DirEntryAddArgs {
             ino,
             kind: FileType::Directory,
             name: OsString::from("."),
         })
-        .chain(iter::once(DirEntryAddArgs {
+        .chain(std::iter::once(DirEntryAddArgs {
             ino: node.parent,
             kind: FileType::Directory,
             name: OsString::from(".."),
         }))
         .chain(children.iter().filter_map(|(child_name, child_ino)| {
-            if let Some(child_node) = self.nodes.get(&child_ino) {
+            if let Some(child_node) = self.get_node_map().get(&child_ino) {
                 Some(DirEntryAddArgs {
                     ino: *child_ino,
                     kind: match child_node.node_type {
@@ -728,21 +587,14 @@ impl Filesystem for DedupeFS {
         }))
         .collect();
 
-        let fh = self.dir_handles.insert(entries);
+        let fh = self.get_dir_handles_mut().insert(entries);
         reply.opened(fh, 0);
     }
 
-    fn readdir(
-        &mut self,
-        _req: &Request,
-        _ino: u64,
-        fh: u64,
-        offset: i64,
-        mut reply: ReplyDirectory,
-    ) {
+    fn readdir(&mut self, fh: u64, offset: i64, mut reply: ReplyDirectory) {
         info!("readdir: fh={fh}, offset={offset}");
 
-        let entries = self.dir_handles.used.get(&fh).unwrap();
+        let entries = self.get_dir_handles().used.get(&fh).unwrap();
         for (index, entry) in entries.iter().enumerate().skip(0.max(offset as usize)) {
             let is_full = reply.add(
                 entry.ino,
@@ -759,16 +611,9 @@ impl Filesystem for DedupeFS {
         reply.ok();
     }
 
-    fn releasedir(
-        &mut self,
-        _req: &Request<'_>,
-        _ino: u64,
-        fh: u64,
-        _flags: i32,
-        reply: ReplyEmpty,
-    ) {
+    fn releasedir(&mut self, fh: u64, reply: ReplyEmpty) {
         info!("releasedir: {}", fh);
-        self.dir_handles.remove(fh);
+        self.get_dir_handles_mut().remove(fh);
         reply.ok();
     }
 }
