@@ -1,4 +1,4 @@
-# Changes since latest release
+# Changes in 0.2.0-RC
 
 -   Use MetadataExt from unix instead of linux
 
