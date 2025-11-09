@@ -307,7 +307,7 @@ dependencies = [
 
 [[package]]
 name = "dedupefs"
-version = "0.2.0-RC"
+version = "0.2.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
