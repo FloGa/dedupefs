@@ -87,6 +87,9 @@ Options:
           
           [default: 3]
 
+      --reverse
+          Reverse mode, present chunks re-hydrated
+
   -h, --help
           Print help (see a summary with '-h')
 
@@ -148,6 +151,30 @@ deduplicated data chunks:
 <!--% !cargo --quiet run --bin dedupefs_check_cache -- --help %-->
 
 ```text
+Check if cache file is valid and all chunks exist.
+
+Usage: dedupefs_check_cache [OPTIONS] <SOURCE>
+
+Arguments:
+  <SOURCE>
+          Source directory to deduped files
+
+Options:
+      --cache-file <CACHE_FILE>
+          Path to cache file
+          
+          Can be used multiple times. The files are read in reverse order, so they should be sorted with the most accurate ones in the beginning. They will only be read, not written.
+
+      --declutter-levels <DECLUTTER_LEVELS>
+          Declutter files into this many subdirectory levels
+          
+          [default: 3]
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
 ```
 
 ### Create Cache
@@ -155,6 +182,36 @@ deduplicated data chunks:
 <!--% !cargo --quiet run --bin dedupefs_create_cache -- --help %-->
 
 ```text
+Only create cache file without actually mounting.
+
+Usage: dedupefs_create_cache [OPTIONS] <SOURCE>
+
+Arguments:
+  <SOURCE>
+          Source directory
+
+Options:
+      --cache-file <CACHE_FILE>
+          Path to cache file
+          
+          Can be used multiple times. The files are read in reverse order, so they should be sorted with the most accurate ones in the beginning. The first given will be written.
+
+      --hashing-algorithm <HASHING_ALGORITHM>
+          Hashing algorithm to use for chunk filenames
+          
+          [default: sha1]
+          [possible values: md5, sha1, sha256, sha512]
+
+      --declutter-levels <DECLUTTER_LEVELS>
+          Declutter files into this many subdirectory levels
+          
+          [default: 3]
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
 ```
 
 ### Delete Extra Files
@@ -162,6 +219,36 @@ deduplicated data chunks:
 <!--% !cargo --quiet run --bin dedupefs_delete_extra_files -- --help %-->
 
 ```text
+Delete files not present in any cache files.
+
+Usage: dedupefs_delete_extra_files [OPTIONS] <SOURCE>
+
+Arguments:
+  <SOURCE>
+          Source directory
+
+Options:
+      --cache-file <CACHE_FILE>
+          Path to cache file
+          
+          Can be used multiple times. The files are read in reverse order, so they should be sorted with the most accurate ones in the beginning. They will only be read, not written.
+
+  -v
+          List deleted files
+
+  -f
+          Force deletion
+
+      --declutter-levels <DECLUTTER_LEVELS>
+          Declutter files into this many subdirectory levels
+          
+          [default: 3]
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
 ```
 
 ### List Extra Files
@@ -169,6 +256,33 @@ deduplicated data chunks:
 <!--% !cargo --quiet run --bin dedupefs_list_extra_files -- --help %-->
 
 ```text
+List files not present in any cache files.
+
+Usage: dedupefs_list_extra_files [OPTIONS] <SOURCE>
+
+Arguments:
+  <SOURCE>
+          Source directory
+
+Options:
+      --cache-file <CACHE_FILE>
+          Path to cache file
+          
+          Can be used multiple times. The files are read in reverse order, so they should be sorted with the most accurate ones in the beginning. They will only be read, not written.
+
+  -0
+          Separate file names with null character instead of newline
+
+      --declutter-levels <DECLUTTER_LEVELS>
+          Declutter files into this many subdirectory levels
+          
+          [default: 3]
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
 ```
 
 ### List Missing Chunks
@@ -176,6 +290,31 @@ deduplicated data chunks:
 <!--% !cargo --quiet run --bin dedupefs_list_missing_chunks -- --help %-->
 
 ```text
+List chunks from cache files that are not present in the source directory.
+
+Usage: dedupefs_list_missing_chunks [OPTIONS] <SOURCE>
+
+Arguments:
+  <SOURCE>
+          Source directory
+
+Options:
+      --cache-file <CACHE_FILE>
+          Path to cache file
+          
+          Can be used multiple times. The files are read in reverse order, so they should be sorted with the most accurate ones in the beginning. They will only be read, not written.
+
+      --with-reason
+          Also display the reason for the missing or invalid chunk
+
+  -0
+          Separate file names with null character instead of newline
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
 ```
 
 ## TODO

@@ -85,6 +85,9 @@
 //!
 //!           [default: 3]
 //!
+//!       --reverse
+//!           Reverse mode, present chunks re-hydrated
+//!
 //!   -h, --help
 //!           Print help (see a summary with '-h')
 //!
@@ -101,8 +104,14 @@
 //! If the cache file ends with `.zst`, it will be encoded (or decoded in the case of hydrating) using the ZSTD compression
 //! algorithm. For any other extension, plain JSON will be used.
 //!
-//! Please note that for now it is not possible to mount a hydrated version of a deduped directory. This wil be added in a
-//! future version. For now, you can use [*Crazy Deduper*][crazy-deduper github] to physically re-hydrate your files.
+//! To mount a re-hydrated version of `deduped` directory to `restored`, you can use:
+//!
+//! ```shell
+//! dedupefs --reverse --cache-file cache.json.zst deduped restored
+//! ```
+//!
+//! Before mounting, it will be checked if all chunks present in the cache file are available in the `deduped/data`
+//! directory. If not, the mount will fail.
 //!
 //! ## Cache Files
 //!
@@ -130,11 +139,175 @@
 //! directly under the mountpoint. next to the data directory. When uploading your chunks, always make sure to also upload
 //! this cache file, otherwise you wil not be able to properly re-hydrate your files afterward!
 //!
+//! ## Helper Commands
+//!
+//! There are several helper commands available to work with the cache files and to inspect the internal state of the
+//! deduplicated data chunks:
+//!
+//! ### Check Cache
+//!
+//! ```text
+//! Check if cache file is valid and all chunks exist.
+//!
+//! Usage: dedupefs_check_cache [OPTIONS] <SOURCE>
+//!
+//! Arguments:
+//!   <SOURCE>
+//!           Source directory to deduped files
+//!
+//! Options:
+//!       --cache-file <CACHE_FILE>
+//!           Path to cache file
+//!
+//!           Can be used multiple times. The files are read in reverse order, so they should be sorted with the most accurate ones in the beginning. They will only be read, not written.
+//!
+//!       --declutter-levels <DECLUTTER_LEVELS>
+//!           Declutter files into this many subdirectory levels
+//!
+//!           [default: 3]
+//!
+//!   -h, --help
+//!           Print help (see a summary with '-h')
+//!
+//!   -V, --version
+//!           Print version
+//! ```
+//!
+//! ### Create Cache
+//!
+//! ```text
+//! Only create cache file without actually mounting.
+//!
+//! Usage: dedupefs_create_cache [OPTIONS] <SOURCE>
+//!
+//! Arguments:
+//!   <SOURCE>
+//!           Source directory
+//!
+//! Options:
+//!       --cache-file <CACHE_FILE>
+//!           Path to cache file
+//!
+//!           Can be used multiple times. The files are read in reverse order, so they should be sorted with the most accurate ones in the beginning. The first given will be written.
+//!
+//!       --hashing-algorithm <HASHING_ALGORITHM>
+//!           Hashing algorithm to use for chunk filenames
+//!
+//!           [default: sha1]
+//!           [possible values: md5, sha1, sha256, sha512]
+//!
+//!       --declutter-levels <DECLUTTER_LEVELS>
+//!           Declutter files into this many subdirectory levels
+//!
+//!           [default: 3]
+//!
+//!   -h, --help
+//!           Print help (see a summary with '-h')
+//!
+//!   -V, --version
+//!           Print version
+//! ```
+//!
+//! ### Delete Extra Files
+//!
+//! ```text
+//! Delete files not present in any cache files.
+//!
+//! Usage: dedupefs_delete_extra_files [OPTIONS] <SOURCE>
+//!
+//! Arguments:
+//!   <SOURCE>
+//!           Source directory
+//!
+//! Options:
+//!       --cache-file <CACHE_FILE>
+//!           Path to cache file
+//!
+//!           Can be used multiple times. The files are read in reverse order, so they should be sorted with the most accurate ones in the beginning. They will only be read, not written.
+//!
+//!   -v
+//!           List deleted files
+//!
+//!   -f
+//!           Force deletion
+//!
+//!       --declutter-levels <DECLUTTER_LEVELS>
+//!           Declutter files into this many subdirectory levels
+//!
+//!           [default: 3]
+//!
+//!   -h, --help
+//!           Print help (see a summary with '-h')
+//!
+//!   -V, --version
+//!           Print version
+//! ```
+//!
+//! ### List Extra Files
+//!
+//! ```text
+//! List files not present in any cache files.
+//!
+//! Usage: dedupefs_list_extra_files [OPTIONS] <SOURCE>
+//!
+//! Arguments:
+//!   <SOURCE>
+//!           Source directory
+//!
+//! Options:
+//!       --cache-file <CACHE_FILE>
+//!           Path to cache file
+//!
+//!           Can be used multiple times. The files are read in reverse order, so they should be sorted with the most accurate ones in the beginning. They will only be read, not written.
+//!
+//!   -0
+//!           Separate file names with null character instead of newline
+//!
+//!       --declutter-levels <DECLUTTER_LEVELS>
+//!           Declutter files into this many subdirectory levels
+//!
+//!           [default: 3]
+//!
+//!   -h, --help
+//!           Print help (see a summary with '-h')
+//!
+//!   -V, --version
+//!           Print version
+//! ```
+//!
+//! ### List Missing Chunks
+//!
+//! ```text
+//! List chunks from cache files that are not present in the source directory.
+//!
+//! Usage: dedupefs_list_missing_chunks [OPTIONS] <SOURCE>
+//!
+//! Arguments:
+//!   <SOURCE>
+//!           Source directory
+//!
+//! Options:
+//!       --cache-file <CACHE_FILE>
+//!           Path to cache file
+//!
+//!           Can be used multiple times. The files are read in reverse order, so they should be sorted with the most accurate ones in the beginning. They will only be read, not written.
+//!
+//!       --with-reason
+//!           Also display the reason for the missing or invalid chunk
+//!
+//!   -0
+//!           Separate file names with null character instead of newline
+//!
+//!   -h, --help
+//!           Print help (see a summary with '-h')
+//!
+//!   -V, --version
+//!           Print version
+//! ```
+//!
 //! ## TODO
 //!
-//! - Support mounting a re-hydrated version of a deduped directory.
-//! - Make declutter level configurable (fixed to 3 at the moment).
-//! - Make chunk site configurable (via *Crazy Deduper*, fixed to 1MB at the moment).
+//! - Make chunk size configurable (via *Crazy Deduper*, fixed to 1MB at the moment).
 //! - Provide better documentation with examples and use case descriptions.
 
 use std::collections::HashMap;
