@@ -1,4 +1,11 @@
-# Changes since latest release
+# Changes in 0.2.1
+
+-   Update dependencies
+
+-   Update crazy-deduper to 0.2.1
+
+    This fixes problems with symlinks and files and folders with the same
+    name over several runs.
 
 # Changes in 0.2.0
 
