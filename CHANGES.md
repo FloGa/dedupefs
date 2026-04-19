@@ -1,4 +1,4 @@
-# Changes in 0.2.2-RC
+# Changes in 0.2.2
 
 -   Upgrade lru to 0.17.0
 
