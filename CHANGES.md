@@ -1,5 +1,11 @@
 # Changes since latest release
 
+# Changes in 0.2.2
+
+-   Upgrade lru to 0.17.0
+
+-   Update dependencies
+
 # Changes in 0.2.1
 
 -   Update dependencies
